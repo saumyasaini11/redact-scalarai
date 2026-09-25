@@ -112,6 +112,7 @@ def run_pipeline(settings: Settings) -> PipelineResult:
     package.apply_records(patch_records)
     package.replace_media(media_replacements)
     package.scrub_metadata()
+    package.normalize_known_layout_defects()
     package.save(output_path)
 
     qa_errors = validate_docx(output_path)

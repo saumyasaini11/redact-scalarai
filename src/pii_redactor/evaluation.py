@@ -103,7 +103,21 @@ def _character_accuracy(predictions: list[PIIRecord], gold: list[dict], manifest
 
 def evaluate(predictions: list[PIIRecord], gold_path: Path, manifest_path: Path | None = None) -> dict:
     if not gold_path.exists() or not gold_path.read_text(encoding="utf-8").strip():
-        return {"status": "TBD", "reason": "Full-dataset gold annotations have not been completed."}
+        status_counts = Counter(item.review_status.value for item in predictions)
+        type_counts = Counter(item.pii_type.value for item in predictions)
+        unresolved_count = sum(
+            item.review_status in {ReviewStatus.NEEDS_REVIEW, ReviewStatus.LOW_CONFIDENCE}
+            for item in predictions
+        )
+        return {
+            "status": "RELEASE_VALIDATION",
+            "reason": "Independent full-corpus gold annotations are not available; accuracy metrics are not claimed.",
+            "total_candidates": len(predictions),
+            "unresolved_count": unresolved_count,
+            "release_gate_passed": unresolved_count == 0,
+            "status_counts": dict(sorted(status_counts.items())),
+            "type_counts": dict(sorted(type_counts.items())),
+        }
     gold = [json.loads(line) for line in gold_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     strict_predictions, strict_gold = _match_predictions(predictions, gold, relaxed=False)
     relaxed_predictions, relaxed_gold = _match_predictions(predictions, gold, relaxed=True)
@@ -184,6 +198,41 @@ def _format_metric(value: float | None) -> str:
 
 def write_evaluation(report: dict, markdown_path: Path, csv_path: Path) -> None:
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    if report["status"] == "RELEASE_VALIDATION":
+        rows = [
+            {"section": "release", "pii_type": "ALL", "metric": "total_candidates", "value": report["total_candidates"], "notes": "All centralized detections"},
+            {"section": "release", "pii_type": "ALL", "metric": "unresolved_review_items", "value": report["unresolved_count"], "notes": "Must be zero for final release"},
+            {"section": "release", "pii_type": "ALL", "metric": "release_gate_passed", "value": str(report["release_gate_passed"]).lower(), "notes": "Review-completion gate"},
+        ]
+        rows.extend(
+            {"section": "decision_status", "pii_type": "ALL", "metric": key.casefold(), "value": value, "notes": "Reviewed candidate count"}
+            for key, value in report["status_counts"].items()
+        )
+        rows.extend(
+            {"section": "candidate_type", "pii_type": key, "metric": "candidate_count", "value": value, "notes": "Detected candidate count"}
+            for key, value in report["type_counts"].items()
+        )
+        with csv_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["section", "pii_type", "metric", "value", "notes"])
+            writer.writeheader()
+            writer.writerows(rows)
+        lines = [
+            "# PII Redaction Evaluation Report", "", "## Release validation", "",
+            f"Review gate: **{'PASS' if report['release_gate_passed'] else 'FAIL'}**", "",
+            f"- Total candidates: {report['total_candidates']}",
+            f"- Unresolved review items: {report['unresolved_count']}",
+            "", "## Review outcomes", "", "| Status | Count |", "|---|---:|",
+        ]
+        lines.extend(f"| {key} | {value} |" for key, value in report["status_counts"].items())
+        lines.extend(["", "## Candidates by type", "", "| Type | Count |", "|---|---:|"])
+        lines.extend(f"| {key} | {value} |" for key, value in report["type_counts"].items())
+        lines.extend([
+            "", "## Accuracy scope", "",
+            report["reason"],
+            "The CSV reports release coverage and adjudication counts. Precision, recall, and F1 remain unavailable rather than being inferred from the same detections used to create the output.",
+        ])
+        markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return
     if report["status"] != "COMPLETE":
         markdown_path.write_text(
             "# PII Redaction Evaluation Report\n\n"

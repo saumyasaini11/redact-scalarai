@@ -52,9 +52,9 @@ Supported decisions are `APPROVE`, `REJECT_AS_NON_PII`, `RETYPE`, `ADJUST_SPAN`,
 
 ## Evaluation
 
-`data/private/full_dataset_annotation_manifest.private.jsonl` contains every extracted source block for full-corpus annotation. Reviewed entity annotations belong in `data/private/gold_annotations.jsonl`. Until that file is complete, `EVALUATION_REPORT.md` correctly reports all metrics as `TBD`; the implementation does not invent results.
+`data/private/full_dataset_annotation_manifest.private.jsonl` contains every extracted source block for independent full-corpus annotation. Reviewed entity annotations belong in `data/private/gold_annotations.jsonl`. When that independent gold corpus is absent, the evaluation report provides release-gate coverage and adjudication counts without inventing precision, recall, or F1.
 
-Exact-span per-type and micro precision, recall, and F1 are calculated after the gold corpus is frozen. Character accuracy remains unavailable until the gold file includes character-level masks.
+Exact-span per-type and micro precision, recall, and F1 are calculated only after an independent gold corpus is frozen. Character accuracy likewise requires character-level gold masks.
 
 ## Known tradeoffs
 
@@ -62,6 +62,6 @@ NER can confuse public institutions, commercial entities, people, and document h
 
 ## Current supplied-dataset run
 
-The implemented full-dataset run extracted 4,254 text blocks, evaluated all eight embedded media assets, and produced 2,298 centralized candidate records. It auto-approved 369 high-confidence records and exported 1,929 records for mandatory review. Because those decisions and the independent full-corpus gold annotation are not complete, the pipeline intentionally produced `Red Herring Prospectus - Review Draft.docx`; it did not create the submission-ready final filename or invent evaluation metrics.
+The completed full-dataset run extracted 4,254 text blocks, evaluated all eight embedded media assets, and produced 2,316 centralized candidate records. It auto-approved 289 high-confidence records, approved 281 records during review, and rejected 1,746 false positives or out-of-scope public and generic terms. No review items remain.
 
-The review draft reopened successfully, all approved replacement values were found in their output blocks, all eight media assets were replaced, and all 127 rendered pages were visually inspected. See `reports/summary_report.json` and `reports/visual_qa.json` for the machine-readable run status.
+The final `data/output/Red Herring Prospectus - Pseudonymized.docx` reopened successfully, contains every approved replacement, has no residual approved originals in the DOCX XML, and replaces all eight media assets. Its 127 rendered pages were visually inspected, including a corrected inherited table-indent defect. See `reports/summary_report.json`, `reports/evaluation_report.csv`, `EVALUATION_REPORT.md`, and `REDACTION_TRACKER.md` for release status and counts.

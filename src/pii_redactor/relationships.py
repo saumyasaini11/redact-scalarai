@@ -21,17 +21,21 @@ def assign_identity_ids(records: list[PIIRecord]) -> None:
     for record in records:
         blocks[record.block_id].append(record)
     for block_id, items in blocks.items():
-        person_anchor = next((item for item in items if item.pii_type == PIIType.PERSON), None)
-        company_anchor = next((item for item in items if item.pii_type == PIIType.COMPANY), None)
-        if person_anchor:
-            identity = "person-" + sha256(person_anchor.normalized_text.encode()).hexdigest()[:12]
+        person_anchors = [item for item in items if item.pii_type == PIIType.PERSON]
+        company_anchors = [item for item in items if item.pii_type == PIIType.COMPANY]
+        for person_anchor in person_anchors:
+            person_anchor.identity_id = "person-" + sha256(person_anchor.normalized_text.encode()).hexdigest()[:12]
+        for company_anchor in company_anchors:
+            company_anchor.identity_id = "org-" + sha256(company_anchor.normalized_text.encode()).hexdigest()[:12]
+        if len(person_anchors) == 1:
+            identity = person_anchors[0].identity_id
             for item in items:
-                if item.pii_type in PERSON_TYPES:
+                if item.pii_type in PERSON_TYPES and item.pii_type != PIIType.PERSON:
                     item.identity_id = identity
-        if company_anchor:
-            identity = "org-" + sha256(company_anchor.normalized_text.encode()).hexdigest()[:12]
+        if len(company_anchors) == 1:
+            identity = company_anchors[0].identity_id
             for item in items:
-                if item.identity_id is None and item.pii_type in ORG_TYPES:
+                if item.identity_id is None and item.pii_type in ORG_TYPES and item.pii_type != PIIType.COMPANY:
                     item.identity_id = identity
     for record in records:
         if record.identity_id is None:
@@ -39,4 +43,3 @@ def assign_identity_ids(records: list[PIIRecord]) -> None:
             record.identity_id = f"{prefix}-" + sha256(
                 f"{record.pii_type.value}|{record.normalized_text}".encode()
             ).hexdigest()[:12]
-

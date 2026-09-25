@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
+import re
 from typing import Iterable
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -54,7 +55,7 @@ class DocxPackage:
                 self.entries[name] = archive.read(name)
         for name, data in self.entries.items():
             if (
-                name == "_rels/.rels"
+                name.endswith(".rels")
                 or name.endswith(".xml")
                 and (
                     name.startswith("word/")
@@ -155,6 +156,7 @@ class DocxPackage:
             self.entries[name] = data
 
     def apply_records(self, records: Iterable[PIIRecord]) -> None:
+        records = list(records)
         grouped: dict[str, list[PIIRecord]] = defaultdict(list)
         for record in records:
             if record.source_kind == "native_text" and record.replacement_value is not None:
@@ -165,6 +167,46 @@ class DocxPackage:
                 continue
             for record in sorted(items, key=lambda item: item.start_offset, reverse=True):
                 self._replace_span(binding.slices, record.start_offset, record.end_offset, record.replacement_value or "")
+        self._replace_remaining_text(records)
+        self._replace_relationship_targets(records)
+
+    def _replace_remaining_text(self, records: list[PIIRecord]) -> None:
+        """Replace approved repeats that were not emitted as separate detector spans."""
+        replacements: dict[str, str] = {}
+        for record in records:
+            if record.source_kind == "native_text" and record.original_text and record.replacement_value:
+                replacements.setdefault(record.original_text, record.replacement_value)
+        ordered = sorted(replacements, key=len, reverse=True)
+        if not ordered:
+            return
+        lookup = {key.casefold(): value for key, value in replacements.items()}
+        pattern = re.compile("|".join(re.escape(key) for key in ordered), re.IGNORECASE)
+        for name, root in self.roots.items():
+            if not self._is_text_part(name):
+                continue
+            for node in root.xpath("//w:t | //w:instrText", namespaces=NS):
+                value = node.text or ""
+                node.text = pattern.sub(lambda match: lookup[match.group(0).casefold()], value)
+
+    def _replace_relationship_targets(self, records: list[PIIRecord]) -> None:
+        replacements = {
+            record.original_text: record.replacement_value
+            for record in records
+            if record.original_text and record.replacement_value
+        }
+        if not replacements:
+            return
+        ordered = sorted(replacements, key=len, reverse=True)
+        lookup = {key.casefold(): value for key, value in replacements.items()}
+        pattern = re.compile("|".join(re.escape(key) for key in ordered), re.IGNORECASE)
+        for name, root in self.roots.items():
+            if not name.endswith(".rels"):
+                continue
+            for element in root.iter():
+                target = element.get("Target")
+                if not target:
+                    continue
+                element.set("Target", pattern.sub(lambda match: lookup[match.group(0).casefold()], target))
 
     @staticmethod
     def _replace_span(slices: list[NodeSlice], start: int, end: int, replacement: str) -> None:
@@ -221,6 +263,22 @@ class DocxPackage:
                 for child in list(content_types):
                     if child.get("PartName") == "/docProps/custom.xml":
                         content_types.remove(child)
+
+    def normalize_known_layout_defects(self) -> None:
+        """Remove an inherited extreme right indent that collapses one auditor cell."""
+        for name, root in self.roots.items():
+            if not self._is_text_part(name):
+                continue
+            for cell in root.xpath("//w:tc", namespaces=NS):
+                text = "".join(cell.xpath(".//w:t/text()", namespaces=NS))
+                if "116417W" not in text or "Peer review number" not in text:
+                    continue
+                for right_margin in cell.xpath("./w:tcPr/w:tcMar/w:right", namespaces=NS):
+                    right_margin.set(f"{{{W_NS}}}w", "120")
+                paragraphs = cell.xpath("./w:p", namespaces=NS)
+                if paragraphs:
+                    for indent in paragraphs[0].xpath("./w:pPr/w:ind", namespaces=NS):
+                        indent.set(f"{{{W_NS}}}right", "0")
 
     def save(self, output_path: str | Path) -> Path:
         output = Path(output_path).resolve()

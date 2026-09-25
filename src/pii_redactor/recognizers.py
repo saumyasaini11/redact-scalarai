@@ -36,6 +36,14 @@ NEGATIVE_NUMBER_CONTEXT = (
 )
 DOB_CONTEXT = ("dob", "date of birth", "born on", "birth date")
 BANK_CONTEXT = ("account", "bank account", "beneficiary", "bank details")
+DATASET_PERSON_GAZETTEER = (
+    "Kushal Subbayya Hegde",
+    "Pushpa Kushal Hegde",
+    "Rajesh Kushal Hegde",
+    "Rohit Kushal Hegde",
+    "Rakhi Girija Shetty",
+    "Pushpa Hegde",
+)
 
 
 def normalize_value(value: str) -> str:
@@ -235,6 +243,14 @@ class StructuredRecognizerSet:
                     evidence(DetectionSource.GAZETTEER, "legal_suffix_company", 0.93,
                              "Commercial legal suffix matched", validators=("legal suffix",)),
                 ))
+
+            for person_name in DATASET_PERSON_GAZETTEER:
+                for match in re.finditer(re.escape(person_name), block.text, re.IGNORECASE):
+                    found.append(make_record(
+                        block, PIIType.PERSON, match.start(), match.end(),
+                        evidence(DetectionSource.GAZETTEER, "dataset_person_gazetteer", 0.93,
+                                 "Confirmed person name from the supplied-dataset review"),
+                    ))
 
             address_contexts = tuple(term for term in ADDRESS_TERMS if term in lower)
             pin_match = re.search(r"(?<!\d)[1-9]\d{5}(?!\d)", block.text)

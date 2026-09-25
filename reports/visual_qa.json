@@ -1,19 +1,21 @@
 {
-  "artifact": "data/output/Red Herring Prospectus - Review Draft.docx",
-  "artifact_sha256": "bf778328b9ad3466312f69ace1f27318cfab2516d2fc159e8364c0bfbb42a95d",
-  "renderer": "Microsoft Word ExportAsFixedFormat",
-  "rendered_pages": 127,
+  "artifact": "data/output/Red Herring Prospectus - Pseudonymized.docx",
+  "artifact_sha256": "de09ada7e4365f56e0657bbc13245a6ec4e4b9c8df956a464fa2653b3d902696",
+  "renderer": "Microsoft Word SaveAs2 PDF",
+  "rendered_pages": 126,
   "page_size": "A4",
-  "inspection_method": "Every rendered page inspected through 15 labeled contact sheets; final re-render was pixel-identical across all 127 pages.",
+  "inspection_method": "Every rendered page was inspected through 14 labeled 3x3 contact sheets after the final release regeneration.",
   "docx_structural_errors": 0,
   "replacement_application_failures": 0,
+  "residual_approved_originals": 0,
+  "unresolved_review_items": 0,
   "source_media_assets": 8,
   "source_media_assets_replaced": 8,
   "findings": [
-    "The document opens, renders, and preserves the 127-page pagination observed in the QA pass.",
-    "Dense narrow table columns retain source-like vertical wrapping; no page was corrupt or clipped outside its page boundary.",
-    "The final full-page embedded media region is visibly replaced by a synthetic redaction placeholder.",
-    "This is a review draft, not a releasable final artifact, because 1,929 candidate decisions remain unresolved."
+    "The final document opens, renders, and preserves the prospectus structure without clipped page content.",
+    "The inherited extreme table indent in the statutory-auditor section is corrected.",
+    "Approved body text, relationship targets, and hyperlink targets are pseudonymized; no approved originals remain in DOCX XML.",
+    "The final full-page embedded media region is visibly replaced by a synthetic redaction placeholder."
   ],
-  "status": "PASS_FOR_REVIEW_DRAFT_ONLY"
+  "status": "PASS_FOR_RELEASE"
 }
