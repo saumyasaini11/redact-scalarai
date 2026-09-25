@@ -1,0 +1,21 @@
+[paths]
+input = "Red Herring Prospectus (1).docx"
+final_output = "data/output/Red Herring Prospectus - Pseudonymized.docx"
+draft_output = "data/output/Red Herring Prospectus - Review Draft.docx"
+private_dir = "data/private"
+reports_dir = "reports"
+
+[redaction]
+mode = "synthetic"
+high_threshold = 0.85
+medium_threshold = 0.60
+default_region = "IN"
+company_scope = "commercial"
+replace_all_media = true
+strict_release = true
+seed_env = "PII_REDACTION_SEED"
+
+[tools]
+spacy_model = "en_core_web_md"
+tesseract_cmd = "C:/Program Files/Tesseract-OCR/tesseract.exe"
+

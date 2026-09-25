@@ -1,0 +1,43 @@
+{
+  "source_sha256": "8b5c93f7642d659e64b51be9f6172c86c2825417f376ca1800ed331515e6f929",
+  "output_sha256": "bf778328b9ad3466312f69ace1f27318cfab2516d2fc159e8364c0bfbb42a95d",
+  "output_path": "C:\\Users\\Saumy\\Desktop\\scalarai\\1\\data\\output\\Red Herring Prospectus - Review Draft.docx",
+  "seed_fingerprint": "7d054ab2a60dc49c",
+  "total_candidates": 2298,
+  "entities_by_type": {
+    "AADHAAR": 2,
+    "ADDRESS": 19,
+    "BIOMETRIC": 2,
+    "CIN": 9,
+    "COMPANY": 1963,
+    "DOB": 2,
+    "EMAIL": 50,
+    "PAN": 1,
+    "PERSON": 214,
+    "PHONE": 34,
+    "QR_CODE": 2
+  },
+  "entities_by_status": {
+    "AUTO_APPROVED": 369,
+    "NEEDS_REVIEW": 1929
+  },
+  "evidence_by_source": {
+    "CHECKSUM_VALIDATOR": 34,
+    "CONTEXT_RULE": 21,
+    "GAZETTEER": 135,
+    "OCR": 14,
+    "PRESIDIO_PATTERN": 62,
+    "QR_DETECTOR": 2,
+    "SPACY_NER": 2100
+  },
+  "automatically_replaced": 369,
+  "manual_review_required": 1929,
+  "low_confidence_inspection": 0,
+  "media_total": 8,
+  "media_replaced": 8,
+  "release_ready": false,
+  "qa_errors": [],
+  "replacement_application_failures": 0,
+  "residual_approved_originals_at_release": "NOT_RUN_DRAFT",
+  "unresolved_review_items": 1929
+}

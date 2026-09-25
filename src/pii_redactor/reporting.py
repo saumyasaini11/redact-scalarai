@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+from collections import Counter
+from hashlib import sha256
+import hmac
+import json
+from pathlib import Path
+
+from .models import PIIRecord, ReviewStatus
+
+
+def _fingerprint(secret: str, record: PIIRecord) -> str:
+    return hmac.new(
+        secret.encode("utf-8"),
+        f"{record.pii_type.value}|{record.normalized_text}".encode("utf-8"),
+        sha256,
+    ).hexdigest()[:20]
+
+
+def write_jsonl(path: Path, rows: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def write_audit_logs(private_path: Path, sanitized_path: Path, records: list[PIIRecord], secret: str) -> None:
+    write_jsonl(private_path, [record.private_dict() for record in records])
+    write_jsonl(
+        sanitized_path,
+        [record.sanitized_dict(_fingerprint(secret, record)) for record in records],
+    )
+
+
+def build_summary(records: list[PIIRecord], source_hash: str, output_hash: str | None,
+                  seed_fingerprint: str, media_inventory: list[dict], output_path: str | None) -> dict:
+    type_counts = Counter(record.pii_type.value for record in records)
+    status_counts = Counter(record.review_status.value for record in records)
+    source_counts = Counter(
+        item.source.value for record in records for item in record.evidence
+    )
+    return {
+        "source_sha256": source_hash,
+        "output_sha256": output_hash,
+        "output_path": output_path,
+        "seed_fingerprint": seed_fingerprint,
+        "total_candidates": len(records),
+        "entities_by_type": dict(sorted(type_counts.items())),
+        "entities_by_status": dict(sorted(status_counts.items())),
+        "evidence_by_source": dict(sorted(source_counts.items())),
+        "automatically_replaced": status_counts.get(ReviewStatus.AUTO_APPROVED.value, 0),
+        "manual_review_required": status_counts.get(ReviewStatus.NEEDS_REVIEW.value, 0),
+        "low_confidence_inspection": status_counts.get(ReviewStatus.LOW_CONFIDENCE.value, 0),
+        "media_total": len(media_inventory),
+        "media_replaced": sum(bool(item.get("replaced")) for item in media_inventory),
+        "release_ready": not any(
+            record.review_status in {ReviewStatus.NEEDS_REVIEW, ReviewStatus.LOW_CONFIDENCE}
+            for record in records
+        ),
+    }
+
+
+def write_summary(path: Path, summary: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_tracker(path: Path, summary: dict) -> None:
+    lines = [
+        "# PII Redaction Tracker",
+        "",
+        f"- Source SHA-256: `{summary['source_sha256']}`",
+        f"- Output SHA-256: `{summary.get('output_sha256') or 'TBD'}`",
+        f"- Release ready: `{summary['release_ready']}`",
+        f"- Total resolved candidates: `{summary['total_candidates']}`",
+        f"- Automatically replaced: `{summary['automatically_replaced']}`",
+        f"- Manual review required: `{summary['manual_review_required']}`",
+        f"- Low-confidence inspection: `{summary['low_confidence_inspection']}`",
+        f"- Media replaced: `{summary['media_replaced']}/{summary['media_total']}`",
+        "",
+        "## Counts by type",
+        "",
+        "| Type | Count |",
+        "|---|---:|",
+    ]
+    lines.extend(f"| {key} | {value} |" for key, value in summary["entities_by_type"].items())
+    lines.extend(["", "## Evidence by source", "", "| Source | Contributions |", "|---|---:|"])
+    lines.extend(f"| {key} | {value} |" for key, value in summary["evidence_by_source"].items())
+    lines.extend([
+        "",
+        "Raw originals and mappings are intentionally excluded from this tracker.",
+    ])
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+

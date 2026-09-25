@@ -1,0 +1,11 @@
+presidio-analyzer==2.2.364
+spacy==3.8.16
+en-core-web-md==3.8.0
+Faker==40.39.0
+phonenumbers==9.0.40
+pytesseract==0.3.13
+opencv-python-headless==5.0.0.93
+python-docx==1.2.0
+lxml==6.1.1
+Pillow==12.3.0
+pytest==9.1.1

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.tmp/
+.coverage
+data/private/*
+!data/private/.gitkeep
+data/output/*
+!data/output/.gitkeep
+reports/rendered/
+reports/*.private.*
+.env
