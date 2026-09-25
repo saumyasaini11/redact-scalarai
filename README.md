@@ -1,88 +1,222 @@
 # DOCX PII Redaction Studio
 
-This project provides a Streamlit application and CLI for local DOCX pseudonymization. It detects structured and contextual PII in native DOCX text and embedded media, records explainable confidence evidence, generates a mandatory review queue, preserves related identities, and produces deterministic synthetic replacements without changing the source file.
+A local, privacy-first tool for pseudonymizing sensitive personal information in Microsoft Word documents. Upload a `.docx`, let the tool find and replace every piece of PII with realistic synthetic data, review anything it's unsure about, and download a clean, auditable output — all without sending a single byte to an external server.
 
-## Data handling
+Built for the Indian regulatory context (PAN, Aadhaar, GSTIN, CIN, IFSC, etc.) while also covering universal types like email, phone, credit card, and IP address.
 
-- Document content is never sent to an external API.
-- Raw detections, mappings, annotations, and review decisions are written only under `data/private/`, which is excluded from version control and from the submission bundle.
-- Shareable reports contain record identifiers and keyed fingerprints rather than original values.
-- All embedded media is replaced in this dataset because the supplied assets contain identity documents, commercial logos, or machine-readable content.
+---
+
+## How it works
+
+At a high level, the pipeline does five things:
+
+1. **Detects PII** — runs regex/Presidio pattern recognizers, a spaCy NER pass, checksum validators (Luhn, Verhoeff, phonenumbers), and OCR on embedded images
+2. **Scores confidence** — merges evidence from all detectors into a single confidence score per candidate
+3. **Routes for review** — high-confidence hits are auto-approved; borderline ones go to a human review queue; anything below the lower threshold is flagged for inspection
+4. **Replaces values** — approved candidates get a deterministic synthetic replacement (or a stable mask/partial token, depending on your mode). The same original value always produces the same replacement within a run.
+5. **Validates output** — checksums the output file, scans for residual originals in the XML, and confirms all embedded media was replaced
+
+Nothing leaves your machine. Raw detections, identity mappings, and review decisions are written to `data/private/` which is gitignored and never included in the shareable download bundle.
+
+---
+
+## Benchmark results
+
+The tool was evaluated against a frozen, independently labeled benchmark covering 9 PII types. These are real measured numbers — not estimates.
+
+| Metric | Score |
+|---|---|
+| **Precision** | 0.9000 |
+| **Recall** | 1.0000 |
+| **F1** | 0.9474 |
+| **Character accuracy** | 0.9897 |
+| **Types detected** | 9 / 9 |
+
+Types covered: `PERSON`, `EMAIL`, `PHONE`, `ADDRESS`, `COMPANY`, `DOB`, `PAN`, `AADHAAR`, `CREDIT_CARD`
+
+Full per-type breakdown is in [`reports/benchmark/required_types_evaluation.md`](reports/benchmark/required_types_evaluation.md).
+
+> **Note:** These numbers are for the controlled benchmark only. Full-corpus precision and recall for the prospectus are not claimed until independent gold annotations are provided.
+
+---
+
+## Results on the supplied prospectus
+
+The tool was run end-to-end on a 127-page Red Herring Prospectus. Here's what happened:
+
+| Stage | Count |
+|---|---|
+| Text blocks extracted | 4,254 |
+| Embedded media assets | 8 / 8 replaced |
+| Total PII candidates found | 2,316 |
+| Auto-approved (confidence ≥ 0.85) | 289 |
+| Approved during human review | 281 |
+| Rejected as false positives | 1,746 |
+| Unresolved items remaining | **0** |
+
+The final output (`data/output/Red Herring Prospectus - Pseudonymized.docx`) passed all QA checks: no residual approved originals in the DOCX XML, all 8 media assets replaced, and the document re-opened correctly across 127 pages.
+
+---
+
+## Project structure
+
+```
+.
+├── app.py                  # Streamlit web app — the main UI
+├── config.toml             # Configuration: paths, thresholds, tool settings
+├── pytest.ini              # Test configuration
+├── requirements.in         # Python dependencies
+│
+├── src/pii_redactor/       # Core Python package
+│   ├── pipeline.py         # Orchestrates the full redaction run
+│   ├── recognizers.py      # All PII detectors (regex, NER, checksums)
+│   ├── ensemble.py         # Merges and scores multi-source evidence
+│   ├── models.py           # Data classes: PIIRecord, Evidence, etc.
+│   ├── pseudonyms.py       # Deterministic synthetic replacement engine
+│   ├── review.py           # Review queue read/write
+│   ├── policy.py           # REDACT / PROTECT / IGNORE policy engine
+│   ├── docx_io.py          # DOCX reading, patching, and saving
+│   ├── media.py            # Image OCR and media replacement
+│   ├── qa.py               # Output validation and residual scanning
+│   ├── evaluation.py       # Precision/recall/F1 computation
+│   ├── benchmark.py        # Frozen 9-type benchmark runner
+│   ├── reporting.py        # Summary and audit log generation
+│   ├── relationships.py    # Identity linking across records
+│   ├── app_service.py      # Streamlit session helpers and download bundle
+│   ├── config.py           # Settings dataclass and TOML loader
+│   └── cli.py              # CLI command definitions
+│
+├── tests/                  # Pytest test suite (8 modules)
+├── scripts/                # run_app.ps1 and utility scripts
+├── docs/                   # COMPARISON.md, EVALUATION_REPORT.md, REDACTION_TRACKER.md
+├── data/
+│   ├── input/              # Source DOCX files
+│   ├── output/             # Pseudonymized and draft output files
+│   ├── private/            # Raw PII data — gitignored, never shared
+│   └── app_runs/           # Per-upload Streamlit session workspaces
+├── reports/
+│   ├── benchmark/          # Frozen benchmark labels and results
+│   └── ...                 # Sanitized audit logs and summary reports
+└── dist/                   # Release ZIP archives
+```
+
+---
 
 ## Setup
 
-Use Python 3.12 and install the versions in `requirements.in`. Install Tesseract OCR and configure its path in `config.toml`. The implementation uses Presidio pattern recognizers and one spaCy `en_core_web_md` NER pass.
+**Requirements:** Python 3.12, [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki)
 
 ```powershell
+# 1. Create and activate a virtual environment
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+
+# 2. Install dependencies
 pip install -r requirements.in
+
+# 3. Set your private deterministic seed (keep this outside the project)
+$env:PII_REDACTION_SEED = "your-secret-seed-here"
 ```
 
-Set the deterministic secret in the environment before running:
+The seed is what makes replacements consistent — the same original value will always produce the same synthetic replacement within a run. Store it somewhere safe; changing it changes all output values.
 
-```powershell
-$env:PII_REDACTION_SEED = "store-this-secret-outside-the-project"
+Make sure Tesseract is installed and its path is set in `config.toml` under `[tools]`:
+
+```toml
+[tools]
+tesseract_cmd = "C:/Program Files/Tesseract-OCR/tesseract.exe"
 ```
 
-## Commands
+---
 
-### Streamlit app
+## Running the app
+
+**Streamlit UI (recommended):**
 
 ```powershell
 streamlit run app.py
 ```
 
-On Windows, `run_app.ps1` performs the same launch using the project virtual environment.
-
-The app automates upload isolation, detection, confidence scoring, review decisions, deterministic replacement, media replacement, package QA, sanitized reporting, and downloads. It never places raw values or identity mappings in the downloadable submission bundle.
-
-### CLI
+Or use the bundled script which handles the venv automatically:
 
 ```powershell
-python -m pii_redactor --config config.toml inspect
-python -m pii_redactor --config config.toml run-all
-python -m pii_redactor --config config.toml benchmark
-python -m pii_redactor --config config.toml review export
-python -m pii_redactor --config config.toml review apply
-python -m pii_redactor --config config.toml verify
+.\scripts\run_app.ps1
 ```
 
-Add `src` to `PYTHONPATH` when the package has not been installed:
+The UI walks you through three steps:
+1. **Upload & Analyze** — upload a DOCX, choose your policy settings, and run detection
+2. **Review & Redact** — go through the flagged items, approve or reject each one, then regenerate the output
+3. **Verify & Evaluate** — run the benchmark, download the sanitized report bundle
+
+**CLI (for scripted runs):**
 
 ```powershell
+# Set the source path first
 $env:PYTHONPATH = "$PWD\src"
+
+python -m pii_redactor --config config.toml inspect        # List what was found
+python -m pii_redactor --config config.toml run-all        # Full redaction run
+python -m pii_redactor --config config.toml benchmark      # Run the benchmark
+python -m pii_redactor --config config.toml review export  # Export the review queue
+python -m pii_redactor --config config.toml review apply   # Apply saved decisions
+python -m pii_redactor --config config.toml verify         # QA the output
 ```
 
-## Confidence and review
+---
 
-- Scores at or above `0.85` are automatically accepted.
-- Scores from `0.60` through `0.849999` require review.
-- Lower-scoring candidates enter the low-confidence inspection queue.
-- A safe review draft is generated while unresolved items remain. The submission-ready filename is withheld until every queued record has a decision in `data/private/review_decisions.jsonl`.
+## Confidence thresholds and the review queue
 
-Supported decisions are `APPROVE`, `REJECT_AS_NON_PII`, `RETYPE`, `ADJUST_SPAN`, `LINK_IDENTITY`, `UNLINK_IDENTITY`, `FORCE_MEDIA_REPLACEMENT`, and `CLEAR_MEDIA`.
+Every detected candidate gets a confidence score between 0 and 1. Here's how they're routed:
 
-## Output modes
+| Score range | What happens |
+|---|---|
+| **≥ 0.85** | Auto-approved and redacted immediately |
+| **0.60 – 0.849** | Sent to the review queue — a human decides |
+| **< 0.60** | Low-confidence inspection queue |
 
-- `synthetic` is the default and generates linked, deterministic identities.
-- `mask` emits stable typed tokens.
-- `partial` retains limited suffix information for supported identifiers and falls back to complete masking for unsafe types.
+A "review draft" is generated even while items are pending, so you can check the output at any stage. The final submission-ready filename is only released once every queued record has a decision and QA passes.
 
-## Evaluation
+**Available review decisions:** `APPROVE`, `REJECT_AS_NON_PII`, `RETYPE`, `ADJUST_SPAN`, `LINK_IDENTITY`, `UNLINK_IDENTITY`, `FORCE_MEDIA_REPLACEMENT`, `CLEAR_MEDIA`
 
-`data/private/full_dataset_annotation_manifest.private.jsonl` contains every extracted source block for independent full-corpus annotation. Reviewed entity annotations belong in `data/private/gold_annotations.jsonl`. When that independent gold corpus is absent, the evaluation report provides release-gate coverage and adjudication counts without inventing precision, recall, or F1.
+---
 
-Exact-span per-type and micro precision, recall, and F1 are calculated only after an independent gold corpus is frozen. Character accuracy likewise requires character-level gold masks.
+## Replacement modes
 
-The repository also includes a frozen, independently labeled controlled benchmark for the nine required types: PERSON, EMAIL, PHONE, ADDRESS, COMPANY, DOB, PAN, AADHAAR, and CREDIT_CARD. The current production detector finds all 9/9 types with strict micro precision `0.9000`, recall `1.0000`, and F1 `0.9474`. Those are actual measured benchmark results, not estimates. They are reported separately from the prospectus because the prospectus does not yet have independent full-corpus gold labels. See `reports/benchmark/required_types_evaluation.md` and `reports/benchmark/required_types_report.json`.
+| Mode | What it produces |
+|---|---|
+| `synthetic` (default) | Realistic fake names, addresses, numbers — linked across the document so the same person gets the same fake identity everywhere |
+| `mask` | Stable typed tokens like `[PERSON_1]`, `[EMAIL_2]` |
+| `partial` | Keeps a limited suffix (e.g. last 4 digits of a phone) where safe; falls back to masking for sensitive types |
 
-## Known tradeoffs
+---
 
-NER can confuse public institutions, commercial entities, people, and document headings. Address spans can overlap contact details, and OCR may misread stylized logos or degraded identity documents. The mandatory review gate, checksum validation, negative contexts, full-media replacement, and package-wide residual checks are used to contain those risks.
+## PII types detected
 
-## Current supplied dataset run
+The tool covers 18 entity types split across identity, financial, contact, and digital categories:
 
-The completed full-dataset run extracted 4,254 text blocks, evaluated all eight embedded media assets, and produced 2,316 centralized candidate records. It auto-approved 289 high-confidence records, approved 281 records during review, and rejected 1,746 false positives or out-of-scope public and generic terms. No review items remain.
+| Category | Types |
+|---|---|
+| Identity | `PERSON`, `DOB`, `PASSPORT`, `BIOMETRIC` |
+| Indian financial | `PAN`, `AADHAAR`, `GSTIN`, `CIN`, `IFSC` |
+| Universal financial | `CREDIT_CARD`, `SSN` |
+| Contact | `EMAIL`, `PHONE`, `ADDRESS`, `PIN_CODE` |
+| Digital | `IPV4`, `QR_CODE` |
+| Corporate | `COMPANY` |
 
-The final `data/output/Red Herring Prospectus - Pseudonymized.docx` reopened successfully, contains every approved replacement, has no residual approved originals in the DOCX XML, and replaces all eight media assets. Its 127 rendered pages were visually inspected, including a corrected inherited table-indent defect. See `reports/summary_report.json`, `reports/evaluation_report.csv`, `EVALUATION_REPORT.md`, and `REDACTION_TRACKER.md` for release status and counts.
+---
+
+## Known limitations
+
+- **NER ambiguity** — spaCy can confuse public institution names, company headings, and people's names in dense legal text. The review queue exists precisely for this.
+- **Address span overlap** — addresses sometimes partially overlap with phone/email contact blocks. The heuristic boundary detection handles most cases but isn't perfect.
+- **OCR accuracy** — stylized logos, low-resolution scans, or degraded identity documents may not OCR cleanly. All embedded media is replaced by default to eliminate this risk entirely.
+- **Full-corpus F1** — precision and recall across the full prospectus aren't reported because no independent gold corpus exists for it yet. You can supply one via the app to unlock those metrics.
+
+---
+
+## Data privacy
+
+- Document content **never leaves your machine** — no API calls, no cloud processing
+- `data/private/` contains raw detections and identity mappings and is excluded from git and from the shareable download bundle
+- The download bundle contains only the redacted DOCX, sanitized logs (fingerprints instead of original values), and the evaluation report
+- The seed is never stored in the project — it lives only in your environment variable for the duration of the session
