@@ -1,6 +1,6 @@
-# Full Dataset PII Pseudonymizer
+# DOCX PII Redaction Studio
 
-This project processes the complete supplied `Red Herring Prospectus.docx` locally. It detects structured and contextual PII in native DOCX text and embedded media, records explainable confidence evidence, generates a mandatory review queue, preserves related identities, and produces deterministic synthetic replacements without changing the source file.
+This project provides a Streamlit application and CLI for local DOCX pseudonymization. It detects structured and contextual PII in native DOCX text and embedded media, records explainable confidence evidence, generates a mandatory review queue, preserves related identities, and produces deterministic synthetic replacements without changing the source file.
 
 ## Data handling
 
@@ -13,6 +13,12 @@ This project processes the complete supplied `Red Herring Prospectus.docx` local
 
 Use Python 3.12 and install the versions in `requirements.in`. Install Tesseract OCR and configure its path in `config.toml`. The implementation uses Presidio pattern recognizers and one spaCy `en_core_web_md` NER pass.
 
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.in
+```
+
 Set the deterministic secret in the environment before running:
 
 ```powershell
@@ -21,9 +27,22 @@ $env:PII_REDACTION_SEED = "store-this-secret-outside-the-project"
 
 ## Commands
 
+### Streamlit app
+
+```powershell
+streamlit run app.py
+```
+
+On Windows, `run_app.ps1` performs the same launch using the project virtual environment.
+
+The app automates upload isolation, detection, confidence scoring, review decisions, deterministic replacement, media replacement, package QA, sanitized reporting, and downloads. It never places raw values or identity mappings in the downloadable submission bundle.
+
+### CLI
+
 ```powershell
 python -m pii_redactor --config config.toml inspect
 python -m pii_redactor --config config.toml run-all
+python -m pii_redactor --config config.toml benchmark
 python -m pii_redactor --config config.toml review export
 python -m pii_redactor --config config.toml review apply
 python -m pii_redactor --config config.toml verify
@@ -56,11 +75,13 @@ Supported decisions are `APPROVE`, `REJECT_AS_NON_PII`, `RETYPE`, `ADJUST_SPAN`,
 
 Exact-span per-type and micro precision, recall, and F1 are calculated only after an independent gold corpus is frozen. Character accuracy likewise requires character-level gold masks.
 
+The repository also includes a frozen, independently labeled controlled benchmark for the nine required types: PERSON, EMAIL, PHONE, ADDRESS, COMPANY, DOB, PAN, AADHAAR, and CREDIT_CARD. The current production detector finds all 9/9 types with strict micro precision `0.9000`, recall `1.0000`, and F1 `0.9474`. Those are actual measured benchmark results, not estimates. They are reported separately from the prospectus because the prospectus does not yet have independent full-corpus gold labels. See `reports/benchmark/required_types_evaluation.md` and `reports/benchmark/required_types_report.json`.
+
 ## Known tradeoffs
 
 NER can confuse public institutions, commercial entities, people, and document headings. Address spans can overlap contact details, and OCR may misread stylized logos or degraded identity documents. The mandatory review gate, checksum validation, negative contexts, full-media replacement, and package-wide residual checks are used to contain those risks.
 
-## Current supplied-dataset run
+## Current supplied dataset run
 
 The completed full-dataset run extracted 4,254 text blocks, evaluated all eight embedded media assets, and produced 2,316 centralized candidate records. It auto-approved 289 high-confidence records, approved 281 records during review, and rejected 1,746 false positives or out-of-scope public and generic terms. No review items remain.
 

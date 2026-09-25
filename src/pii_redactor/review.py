@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .models import DetectionSource, Evidence, PIIRecord, ReviewDecision, ReviewStatus
+from .models import DetectionSource, Evidence, PIIRecord, PolicyAction, ReviewDecision, ReviewStatus
 
 
 VALID_ACTIONS = {
     "APPROVE", "REJECT_AS_NON_PII", "RETYPE", "ADJUST_SPAN",
     "LINK_IDENTITY", "UNLINK_IDENTITY", "FORCE_MEDIA_REPLACEMENT", "CLEAR_MEDIA",
+    "REDACT", "PROTECT", "IGNORE",
 }
 
 
@@ -46,6 +47,21 @@ def apply_decisions(
         ))
         if decision.action == "APPROVE":
             record.review_status = ReviewStatus.APPROVED
+        elif decision.action == "REDACT":
+            record.review_status = ReviewStatus.APPROVED
+            record.policy_action = PolicyAction.REDACT
+            record.policy_reason = "Explicit human redaction decision"
+            record.policy_locked = True
+        elif decision.action == "PROTECT":
+            record.review_status = ReviewStatus.APPROVED
+            record.policy_action = PolicyAction.PROTECT
+            record.policy_reason = "Explicit human protection decision"
+            record.policy_locked = True
+        elif decision.action == "IGNORE":
+            record.review_status = ReviewStatus.REJECTED_AS_NON_PII
+            record.policy_action = PolicyAction.IGNORE
+            record.policy_reason = "Explicit human ignore decision"
+            record.policy_locked = True
         elif decision.action == "REJECT_AS_NON_PII":
             record.review_status = ReviewStatus.REJECTED_AS_NON_PII
         elif decision.action == "RETYPE" and decision.new_type:
@@ -73,14 +89,20 @@ def apply_decisions(
             record.review_status = ReviewStatus.APPROVED
         elif decision.action == "FORCE_MEDIA_REPLACEMENT":
             record.review_status = ReviewStatus.APPROVED
+            record.policy_action = PolicyAction.REDACT
+            record.policy_reason = "Explicit media replacement decision"
+            record.policy_locked = True
         elif decision.action == "CLEAR_MEDIA":
             record.review_status = ReviewStatus.APPROVED
+            record.policy_action = PolicyAction.IGNORE
+            record.policy_reason = "Explicit decision to retain this media asset"
+            record.policy_locked = True
 
 
 def unresolved(records: list[PIIRecord]) -> list[PIIRecord]:
     return [
         item for item in records
-        if item.review_status in {ReviewStatus.NEEDS_REVIEW, ReviewStatus.LOW_CONFIDENCE}
+        if item.policy_action == PolicyAction.REVIEW
     ]
 
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
 from docx import Document
+from lxml import etree
 
 from .models import PIIRecord
 
@@ -72,3 +73,33 @@ def media_hashes(path: str | Path) -> dict[str, str]:
             name: sha256(archive.read(name)).hexdigest()
             for name in archive.namelist() if name.startswith("word/media/")
         }
+
+
+def _structure_signature(path: str | Path) -> dict[str, int]:
+    names = {
+        "paragraphs": "p", "tables": "tbl", "rows": "tr", "cells": "tc",
+        "sections": "sectPr", "drawings": "drawing", "headers": "headerReference",
+        "footers": "footerReference",
+    }
+    counts = {key: 0 for key in names}
+    with ZipFile(path) as archive:
+        for part_name in archive.namelist():
+            if not part_name.startswith("word/") or not part_name.endswith(".xml"):
+                continue
+            try:
+                root = etree.fromstring(archive.read(part_name))
+            except etree.XMLSyntaxError:
+                continue
+            for key, local_name in names.items():
+                counts[key] += len(root.xpath(f"//*[local-name()='{local_name}']"))
+    return counts
+
+
+def validate_structure_preservation(source_path: str | Path, output_path: str | Path) -> list[str]:
+    source = _structure_signature(source_path)
+    output = _structure_signature(output_path)
+    errors: list[str] = []
+    for key in source:
+        if source[key] != output[key]:
+            errors.append(f"DOCX structure changed for {key}: source={source[key]}, output={output[key]}")
+    return errors

@@ -46,6 +46,13 @@ class ReviewStatus(str, Enum):
     REJECTED_AS_NON_PII = "REJECTED_AS_NON_PII"
 
 
+class PolicyAction(str, Enum):
+    REDACT = "REDACT"
+    PROTECT = "PROTECT"
+    REVIEW = "REVIEW"
+    IGNORE = "IGNORE"
+
+
 @dataclass(frozen=True)
 class Evidence:
     source: DetectionSource
@@ -83,11 +90,15 @@ class PIIRecord:
     replacement_value: str | None = None
     media_name: str | None = None
     bounding_box: tuple[int, int, int, int] | None = None
+    policy_action: PolicyAction = PolicyAction.REVIEW
+    policy_reason: str = "Awaiting policy classification"
+    policy_locked: bool = False
 
     def private_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["pii_type"] = self.pii_type.value
         data["review_status"] = self.review_status.value
+        data["policy_action"] = self.policy_action.value
         for item in data["evidence"]:
             item["source"] = item["source"].value if hasattr(item["source"], "value") else item["source"]
         return data

@@ -261,8 +261,16 @@ class StructuredRecognizerSet:
                     start = colon + 1
                     while start < len(block.text) and block.text[start].isspace():
                         start += 1
-                if len(block.text[start:].strip()) >= 12:
-                    end = len(block.text)
+                tail = block.text[start:]
+                boundary = re.search(
+                    r"(?i)(?:\s{2,}|[;|])(?:telephone|phone|mobile|e-mail|email|website|fax|"
+                    r"contact(?:\s+person)?|cin|gstin)\s*:",
+                    tail,
+                )
+                end = start + boundary.start() if boundary else len(block.text)
+                while end > start and block.text[end - 1].isspace():
+                    end -= 1
+                if len(block.text[start:end].strip()) >= 12:
                     found.append(make_record(
                         block, PIIType.ADDRESS, start, end,
                         evidence(DetectionSource.CONTEXT_RULE, "address_context", 0.85,

@@ -1,12 +1,26 @@
+# Python
 __pycache__/
 *.py[cod]
+.coverage
+
+# Test caches (disabled via pytest.ini -p no:cacheprovider)
 .pytest_cache/
 .tmp/
-.coverage
+
+# Private runtime data — never commit
 data/private/*
 !data/private/.gitkeep
 data/output/*
 !data/output/.gitkeep
+data/app_runs/
+
+# Reports with raw values
 reports/rendered/
 reports/*.private.*
+
+# Distribution archives
+dist/
+
+# Environment
 .env
+.venv/

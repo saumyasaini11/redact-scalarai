@@ -24,10 +24,11 @@ class Settings:
     spacy_model: str
     tesseract_cmd: str
     seed_env: str
+    secret_seed: str | None = None
 
     @property
     def seed(self) -> str:
-        value = os.environ.get(self.seed_env)
+        value = self.secret_seed or os.environ.get(self.seed_env)
         if not value:
             raise RuntimeError(
                 f"Required environment variable {self.seed_env} is not set. "
@@ -60,7 +61,7 @@ def load_settings(path: str | Path) -> Settings:
         high_threshold=float(redaction.get("high_threshold", 0.85)),
         medium_threshold=float(redaction.get("medium_threshold", 0.60)),
         default_region=redaction.get("default_region", "IN"),
-        company_scope=redaction.get("company_scope", "commercial"),
+        company_scope=redaction.get("company_scope", "protect"),
         replace_all_media=bool(redaction.get("replace_all_media", True)),
         strict_release=bool(redaction.get("strict_release", True)),
         spacy_model=tools.get("spacy_model", "en_core_web_md"),

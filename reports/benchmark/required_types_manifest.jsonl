@@ -1,0 +1,9 @@
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p1", "text": "Contact person: Kushal Subbayya Hegde"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p2", "text": "Email: reviewer.quality@example.test"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p3", "text": "Telephone: +91 98765 43210"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p4", "text": "Address: 42 Example Road, Sample Nagar, Delhi 110001"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p5", "text": "Company: Asteron Technologies Private Limited"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p6", "text": "Date of birth: 14/03/1987"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p7", "text": "PAN: ABCDE1234F"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p8", "text": "Aadhaar: 2345 6789 0124"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p9", "text": "Payment card: 4111 1111 1111 1111"}

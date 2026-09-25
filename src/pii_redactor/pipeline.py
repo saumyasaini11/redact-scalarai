@@ -9,19 +9,21 @@ from .docx_io import DocxPackage
 from .ensemble import merge_and_score
 from .evaluation import evaluate, write_evaluation
 from .media import analyze_media
-from .models import PIIRecord, ReviewStatus
+from .models import PIIRecord
+from .policy import apply_entity_policy, records_to_redact, selected_media_replacements
 from .pseudonyms import Pseudonymizer, assign_replacements
 from .qa import (
     file_sha256,
     media_hashes,
     replacement_application_failures,
     scan_original_values,
+    validate_structure_preservation,
     validate_docx,
 )
 from .recognizers import detect_all
 from .relationships import assign_identity_ids
 from .reporting import build_summary, write_audit_logs, write_summary, write_tracker
-from .review import apply_decisions, approved, load_decisions, unresolved, write_queue
+from .review import apply_decisions, load_decisions, unresolved, write_queue
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,7 @@ def run_pipeline(settings: Settings) -> PipelineResult:
     settings.private_dir.mkdir(parents=True, exist_ok=True)
     settings.reports_dir.mkdir(parents=True, exist_ok=True)
     settings.final_output_path.parent.mkdir(parents=True, exist_ok=True)
+    (settings.project_root / "docs").mkdir(parents=True, exist_ok=True)
 
     package = DocxPackage(settings.input_path)
     source_hash = package.source_hash
@@ -77,6 +80,7 @@ def run_pipeline(settings: Settings) -> PipelineResult:
     decisions_path = settings.private_dir / "review_decisions.jsonl"
     decisions = load_decisions(decisions_path, source_hash)
     apply_decisions(records, decisions, {block.block_id: block.text for block in blocks})
+    apply_entity_policy(records, settings.company_scope)
     assign_identity_ids(records)
     pseudonymizer = Pseudonymizer(settings.seed, settings.mode)
     assign_replacements(records, pseudonymizer)
@@ -108,7 +112,10 @@ def run_pipeline(settings: Settings) -> PipelineResult:
     if settings.strict_release and pending:
         output_path = settings.draft_output_path
 
-    patch_records = approved(records)
+    patch_records = records_to_redact(records)
+    media_replacements = selected_media_replacements(records, media_replacements)
+    for item in media_inventory:
+        item["replaced"] = item.get("media_name") in media_replacements
     package.apply_records(patch_records)
     package.replace_media(media_replacements)
     package.scrub_metadata()
@@ -116,12 +123,10 @@ def run_pipeline(settings: Settings) -> PipelineResult:
     package.save(output_path)
 
     qa_errors = validate_docx(output_path)
+    qa_errors.extend(validate_structure_preservation(settings.input_path, output_path))
     source_media_hashes = {item["media_name"]: item.get("source_sha256") for item in media_inventory}
     output_media = media_hashes(output_path)
-    unchanged_media = [
-        name for name, digest in output_media.items()
-        if source_media_hashes.get(name) == digest
-    ]
+    unchanged_media = [name for name in media_replacements if source_media_hashes.get(name) == output_media.get(name)]
     if unchanged_media:
         qa_errors.append(f"Original media remained unchanged: {unchanged_media}")
     application_failures = replacement_application_failures(output_path, patch_records)
@@ -141,7 +146,7 @@ def run_pipeline(settings: Settings) -> PipelineResult:
     summary["residual_approved_originals_at_release"] = len(residuals) if release_ready else "NOT_RUN_DRAFT"
     summary["unresolved_review_items"] = len(pending)
     write_summary(settings.reports_dir / "summary_report.json", summary)
-    write_tracker(settings.project_root / "REDACTION_TRACKER.md", summary)
+    write_tracker(settings.project_root / "docs" / "REDACTION_TRACKER.md", summary)
 
     evaluation = evaluate(
         records,
@@ -150,7 +155,7 @@ def run_pipeline(settings: Settings) -> PipelineResult:
     )
     write_evaluation(
         evaluation,
-        settings.project_root / "EVALUATION_REPORT.md",
+        settings.project_root / "docs" / "EVALUATION_REPORT.md",
         settings.reports_dir / "evaluation_report.csv",
     )
     return PipelineResult(

@@ -1,0 +1,260 @@
+{
+  "status": "COMPLETE",
+  "rows": [
+    {
+      "pii_type": "PERSON",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "pii_type": "EMAIL",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "pii_type": "PHONE",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "pii_type": "COMPANY",
+      "support": 1,
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "pii_type": "ADDRESS",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "pii_type": "SSN",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    {
+      "pii_type": "CREDIT_CARD",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "pii_type": "DOB",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "pii_type": "IPV4",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    {
+      "pii_type": "PAN",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "pii_type": "AADHAAR",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "pii_type": "PASSPORT",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    {
+      "pii_type": "GSTIN",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    {
+      "pii_type": "CIN",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    {
+      "pii_type": "IFSC",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    {
+      "pii_type": "PIN_CODE",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    {
+      "pii_type": "BIOMETRIC",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    },
+    {
+      "pii_type": "QR_CODE",
+      "support": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "f1": null
+    }
+  ],
+  "micro": {
+    "tp": 9,
+    "fp": 1,
+    "fn": 0,
+    "precision": 0.9,
+    "recall": 1.0,
+    "f1": 0.9473684210526316
+  },
+  "relaxed": {
+    "tp": 9,
+    "fp": 1,
+    "fn": 0,
+    "precision": 0.9,
+    "recall": 1.0,
+    "f1": 0.9473684210526316
+  },
+  "automatic_replacement_precision": 1.0,
+  "review_workload": 0.1,
+  "confidence_bands": {
+    "high": {
+      "predictions": 9,
+      "tp": 9,
+      "precision": 1.0
+    },
+    "medium": {
+      "predictions": 1,
+      "tp": 0,
+      "precision": 0.0
+    },
+    "low": {
+      "predictions": 0,
+      "tp": 0,
+      "precision": null
+    }
+  },
+  "detector_source_contribution": {
+    "CHECKSUM_VALIDATOR": 2,
+    "CONTEXT_RULE": 2,
+    "GAZETTEER": 2,
+    "PRESIDIO_PATTERN": 3,
+    "SPACY_NER": 2
+  },
+  "human_review_actions": {},
+  "image_replacement_coverage": null,
+  "character_accuracy": {
+    "tpchar": 197,
+    "tnchar": 92,
+    "fpchar": 3,
+    "fnchar": 0,
+    "accuracy": 0.9897260273972602
+  },
+  "benchmark_scope": "Frozen controlled corpus with one labeled example for each required PII type",
+  "required_types": [
+    "PERSON",
+    "EMAIL",
+    "PHONE",
+    "ADDRESS",
+    "COMPANY",
+    "DOB",
+    "PAN",
+    "AADHAAR",
+    "CREDIT_CARD"
+  ],
+  "required_type_coverage": {
+    "PERSON": true,
+    "EMAIL": true,
+    "PHONE": true,
+    "ADDRESS": true,
+    "COMPANY": true,
+    "DOB": true,
+    "PAN": true,
+    "AADHAAR": true,
+    "CREDIT_CARD": true
+  },
+  "all_required_types_detected": true
+}

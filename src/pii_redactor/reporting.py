@@ -6,7 +6,7 @@ import hmac
 import json
 from pathlib import Path
 
-from .models import PIIRecord, ReviewStatus
+from .models import PIIRecord, PolicyAction, ReviewStatus
 
 
 def _fingerprint(secret: str, record: PIIRecord) -> str:
@@ -36,6 +36,7 @@ def build_summary(records: list[PIIRecord], source_hash: str, output_hash: str |
                   seed_fingerprint: str, media_inventory: list[dict], output_path: str | None) -> dict:
     type_counts = Counter(record.pii_type.value for record in records)
     status_counts = Counter(record.review_status.value for record in records)
+    policy_counts = Counter(record.policy_action.value for record in records)
     source_counts = Counter(
         item.source.value for record in records for item in record.evidence
     )
@@ -47,18 +48,23 @@ def build_summary(records: list[PIIRecord], source_hash: str, output_hash: str |
         "total_candidates": len(records),
         "entities_by_type": dict(sorted(type_counts.items())),
         "entities_by_status": dict(sorted(status_counts.items())),
+        "entities_by_policy": dict(sorted(policy_counts.items())),
         "evidence_by_source": dict(sorted(source_counts.items())),
-        "automatically_replaced": status_counts.get(ReviewStatus.AUTO_APPROVED.value, 0),
+        "automatically_replaced": sum(
+            item.review_status == ReviewStatus.AUTO_APPROVED and item.policy_action == PolicyAction.REDACT
+            for item in records
+        ),
+        "redacted_entities": policy_counts.get(PolicyAction.REDACT.value, 0),
+        "protected_entities": policy_counts.get(PolicyAction.PROTECT.value, 0),
+        "ignored_entities": policy_counts.get(PolicyAction.IGNORE.value, 0),
+        "policy_review_required": policy_counts.get(PolicyAction.REVIEW.value, 0),
         "review_approved": status_counts.get(ReviewStatus.APPROVED.value, 0),
         "review_rejected": status_counts.get(ReviewStatus.REJECTED_AS_NON_PII.value, 0),
         "manual_review_required": status_counts.get(ReviewStatus.NEEDS_REVIEW.value, 0),
         "low_confidence_inspection": status_counts.get(ReviewStatus.LOW_CONFIDENCE.value, 0),
         "media_total": len(media_inventory),
         "media_replaced": sum(bool(item.get("replaced")) for item in media_inventory),
-        "release_ready": not any(
-            record.review_status in {ReviewStatus.NEEDS_REVIEW, ReviewStatus.LOW_CONFIDENCE}
-            for record in records
-        ),
+        "release_ready": policy_counts.get(PolicyAction.REVIEW.value, 0) == 0,
     }
 
 
@@ -76,6 +82,9 @@ def write_tracker(path: Path, summary: dict) -> None:
         f"- Release ready: `{summary['release_ready']}`",
         f"- Total candidates reviewed: `{summary['total_candidates']}`",
         f"- Automatically replaced: `{summary['automatically_replaced']}`",
+        f"- Redacted by policy: `{summary.get('redacted_entities', 0)}`",
+        f"- Protected by policy: `{summary.get('protected_entities', 0)}`",
+        f"- Ignored by policy: `{summary.get('ignored_entities', 0)}`",
         f"- Approved during review: `{summary.get('review_approved', 0)}`",
         f"- Rejected as non-PII: `{summary.get('review_rejected', 0)}`",
         f"- Manual review required: `{summary['manual_review_required']}`",
@@ -88,6 +97,8 @@ def write_tracker(path: Path, summary: dict) -> None:
         "|---|---:|",
     ]
     lines.extend(f"| {key} | {value} |" for key, value in summary["entities_by_type"].items())
+    lines.extend(["", "## Policy decisions", "", "| Action | Count |", "|---|---:|"])
+    lines.extend(f"| {key} | {value} |" for key, value in summary.get("entities_by_policy", {}).items())
     lines.extend(["", "## Evidence by source", "", "| Source | Contributions |", "|---|---:|"])
     lines.extend(f"| {key} | {value} |" for key, value in summary["evidence_by_source"].items())
     lines.extend([

@@ -196,7 +196,14 @@ def _format_metric(value: float | None) -> str:
     return "N/A" if value is None else f"{value:.4f}"
 
 
-def write_evaluation(report: dict, markdown_path: Path, csv_path: Path) -> None:
+def write_evaluation(
+    report: dict,
+    markdown_path: Path,
+    csv_path: Path,
+    *,
+    title: str = "PII Redaction Evaluation Report",
+    scope_note: str | None = None,
+) -> None:
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
     if report["status"] == "RELEASE_VALIDATION":
         rows = [
@@ -235,7 +242,7 @@ def write_evaluation(report: dict, markdown_path: Path, csv_path: Path) -> None:
         return
     if report["status"] != "COMPLETE":
         markdown_path.write_text(
-            "# PII Redaction Evaluation Report\n\n"
+            f"# {title}\n\n"
             "## Status\n\n"
             f"Metrics are **TBD**. {report['reason']}\n\n"
             "The evaluator is implemented for exact-span text matching, relaxed overlap, image bounding-box IoU, "
@@ -249,11 +256,14 @@ def write_evaluation(report: dict, markdown_path: Path, csv_path: Path) -> None:
         writer = csv.DictWriter(handle, fieldnames=["pii_type", "support", "tp", "fp", "fn", "precision", "recall", "f1"])
         writer.writeheader()
         writer.writerows(report["rows"])
-    lines = [
-        "# PII Redaction Evaluation Report", "", "## Strict exact-span / image-IoU results", "",
+    lines = [f"# {title}", ""]
+    if scope_note:
+        lines.extend([scope_note, ""])
+    lines.extend([
+        "## Strict exact-span and image IoU results", "",
         "| Type | Support | TP | FP | FN | Precision | Recall | F1 |",
         "|---|---:|---:|---:|---:|---:|---:|---:|",
-    ]
+    ])
     for row in report["rows"]:
         lines.append(
             f"| {row['pii_type']} | {row['support']} | {row['tp']} | {row['fp']} | {row['fn']} | "
@@ -272,6 +282,15 @@ def write_evaluation(report: dict, markdown_path: Path, csv_path: Path) -> None:
         "", "## Confidence bands", "",
         "| Band | Predictions | TP | Precision |", "|---|---:|---:|---:|",
     ])
+    if "negative_controls" in report:
+        controls = report["negative_controls"]
+        lines.extend([
+            "", "## Hard negative controls", "",
+            f"- Blocks: {controls['blocks']}",
+            f"- True-negative blocks: {controls['true_negative_blocks']}",
+            f"- False-positive blocks: {controls['false_positive_blocks']}",
+            f"- False-positive entities: {controls['false_positive_entities']}",
+        ])
     for band, values in report["confidence_bands"].items():
         lines.append(f"| {band} | {values['predictions']} | {values['tp']} | {_format_metric(values['precision'])} |")
     lines.extend([

@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 from .config import load_settings
+from .benchmark import run_required_type_benchmark
 from .docx_io import DocxPackage
 from .pipeline import run_pipeline
 from .qa import file_sha256, validate_docx
@@ -19,6 +20,7 @@ def _parser() -> argparse.ArgumentParser:
     subparsers.add_parser("detect", help="Detect, report, and create a review draft")
     subparsers.add_parser("redact", help="Apply detections and review decisions")
     subparsers.add_parser("run-all", help="Run detection, review gating, output, evaluation, and QA")
+    subparsers.add_parser("benchmark", help="Measure the frozen nine-type benchmark")
     verify = subparsers.add_parser("verify", help="Validate an existing DOCX")
     verify.add_argument("path", nargs="?", help="DOCX to verify; defaults to final then draft output")
     review = subparsers.add_parser("review", help="Show review queue information")
@@ -29,6 +31,18 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     settings = load_settings(args.config)
+    if args.command == "benchmark":
+        report = run_required_type_benchmark(
+            settings.reports_dir / "benchmark",
+            default_region=settings.default_region,
+            spacy_model=settings.spacy_model,
+        )
+        print(json.dumps({
+            "all_required_types_detected": report["all_required_types_detected"],
+            "micro": report["micro"],
+            "report": str(settings.reports_dir / "benchmark" / "required_types_evaluation.md"),
+        }, indent=2))
+        return 0 if report["all_required_types_detected"] else 4
     if args.command == "inspect":
         package = DocxPackage(settings.input_path)
         package.extract_blocks()
@@ -72,4 +86,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

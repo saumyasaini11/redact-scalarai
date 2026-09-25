@@ -5,7 +5,7 @@ from hashlib import sha256
 import hmac
 import re
 
-from .models import PIIRecord, PIIType, ReviewStatus
+from .models import PIIRecord, PIIType, PolicyAction
 from .recognizers import luhn_valid, verhoeff_valid
 
 
@@ -52,8 +52,10 @@ class Pseudonymizer:
         if identity in self.profiles:
             return self.profiles[identity]
         digest = self._digest(identity)
-        given = GIVEN_NAMES[int.from_bytes(digest[:2], "big") % len(GIVEN_NAMES)]
-        surname = SURNAMES[int.from_bytes(digest[2:4], "big") % len(SURNAMES)]
+        compact_given = tuple(item for item in GIVEN_NAMES if len(item) <= 5)
+        compact_surnames = tuple(item for item in SURNAMES if len(item) <= 5)
+        given = compact_given[int.from_bytes(digest[:2], "big") % len(compact_given)]
+        surname = compact_surnames[int.from_bytes(digest[2:4], "big") % len(compact_surnames)]
         name = f"{given} {surname}"
         slug = re.sub(r"[^a-z0-9]+", ".", name.casefold()).strip(".") or "person"
         number = int.from_bytes(digest[8:12], "big") % 100000
@@ -63,7 +65,7 @@ class Pseudonymizer:
             "name": name,
             "email": f"{slug}.{number:05d}@example.test",
             "phone": f"+91 00000 {number:05d}",
-            "address": f"{number % 199 + 1} Example Road, Sample Nagar, Test State 000001",
+            "address": f"{number % 199 + 1} Sample Road, Test City 000001",
             "company": f"{company_stem} {company_descriptor}",
         }
         self.profiles[identity] = profile
@@ -166,10 +168,7 @@ class Pseudonymizer:
 
 def assign_replacements(records: list[PIIRecord], pseudonymizer: Pseudonymizer) -> None:
     for record in records:
-        if record.review_status in {
-            ReviewStatus.AUTO_APPROVED,
-            ReviewStatus.APPROVED,
-        }:
+        if record.policy_action == PolicyAction.REDACT:
             record.replacement_value = pseudonymizer.replacement_for(record)
         else:
             record.replacement_value = None
