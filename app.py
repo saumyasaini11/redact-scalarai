@@ -67,7 +67,7 @@ upload_tab, review_tab, evaluation_tab = st.tabs([
 with upload_tab:
     uploaded = st.file_uploader("Upload a Word document", type=["docx"])
     gold_upload = st.file_uploader(
-        "Optional complete gold annotations",
+        "Optional gold annotations",
         type=["jsonl"],
         help="Provide exact spans to calculate document-specific precision, recall, and F1.",
     )
@@ -224,7 +224,7 @@ with review_tab:
             evaluation_path = app_run.root / "docs" / "RHP_QA_REPORT.md"
             if evaluation_path.exists():
                 st.download_button(
-                    "Download evaluation report",
+                    "Download RHP_QA_REPORT.md",
                     evaluation_path.read_bytes(),
                     "RHP_QA_REPORT.md",
                     "text/markdown",
@@ -255,7 +255,7 @@ with evaluation_tab:
     st.write(
         "This frozen corpus measures exact-span precision, recall, and F1 for PERSON, EMAIL, PHONE, "
         "COMPANY, ADDRESS, SSN, CREDIT_CARD, DOB, and IPV4. It is reported separately from an "
-        "uploaded document unless complete annotations are supplied."
+        "uploaded document unless gold annotations are supplied."
     )
     if st.button("Run required-type benchmark"):
         try:
@@ -275,6 +275,15 @@ with evaluation_tab:
         cols[3].metric("Span F1", f"{micro['f1']:.3f}" if micro["f1"] is not None else "N/A")
         cols[4].metric("Required types", f"{sum(report['required_type_coverage'].values())}/9")
         st.dataframe(report["rows"], width="stretch", hide_index=True)
+
+    final_evaluation_path = PROJECT_ROOT / "docs" / "EVALUATION_REPORT.md"
+    if final_evaluation_path.exists():
+        st.download_button(
+            "Download EVALUATION_REPORT.md",
+            final_evaluation_path.read_bytes(),
+            "EVALUATION_REPORT.md",
+            "text/markdown",
+        )
 
     app_run = st.session_state.get("app_run")
     if app_run:

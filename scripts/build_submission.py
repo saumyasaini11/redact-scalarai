@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from build_evaluation_report import build_report
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DOCX = ROOT / "data" / "output" / "Red Herring Prospectus - Pseudonymized.docx"
@@ -33,6 +35,7 @@ def repository_files() -> list[Path]:
 def main() -> int:
     if not OUTPUT_DOCX.exists():
         raise FileNotFoundError("Run the final redaction pipeline before building the submission")
+    build_report()
     ARCHIVE.parent.mkdir(parents=True, exist_ok=True)
     with ZipFile(ARCHIVE, "w", ZIP_DEFLATED) as archive:
         for path in repository_files():
