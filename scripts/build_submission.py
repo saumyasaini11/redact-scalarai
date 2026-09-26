@@ -9,6 +9,7 @@ import subprocess
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from build_evaluation_report import build_report
+from render_evaluation_docx import OUTPUT as EVALUATION_DOCX, build_docx, docx_current
 from render_markdown_pdfs import SOURCES, _pdf_path, build_pdfs, pdfs_current
 
 
@@ -100,6 +101,8 @@ def main() -> int:
     build_report()
     media_audit = validate_release()
     MEDIA_AUDIT.write_text(json.dumps(media_audit, indent=2) + "\n", encoding="utf-8")
+    if not docx_current():
+        build_docx()
     if not pdfs_current():
         try:
             build_pdfs()
@@ -110,7 +113,7 @@ def main() -> int:
     ARCHIVE.parent.mkdir(parents=True, exist_ok=True)
     with ZipFile(ARCHIVE, "w", ZIP_DEFLATED) as archive:
         for path in repository_files():
-            if path.resolve() == EVALUATION_MD.resolve():
+            if path.resolve() in {EVALUATION_MD.resolve(), EVALUATION_DOCX.resolve()}:
                 continue
             archive.write(path, path.relative_to(ROOT).as_posix())
         archive.write(OUTPUT_DOCX, f"deliverables/{OUTPUT_DOCX.name}")
@@ -118,6 +121,7 @@ def main() -> int:
             if source != EVALUATION_MD:
                 archive.write(_pdf_path(source), f"readable/{_pdf_path(source).name}")
         archive.write(EVALUATION_MD, EVALUATION_MD.relative_to(ROOT).as_posix())
+        archive.write(EVALUATION_DOCX, EVALUATION_DOCX.relative_to(ROOT).as_posix())
         archive.write(_pdf_path(EVALUATION_MD), "readable/EVALUATION_REPORT.pdf")
     print(f"Created {ARCHIVE} ({ARCHIVE.stat().st_size} bytes)")
     return 0

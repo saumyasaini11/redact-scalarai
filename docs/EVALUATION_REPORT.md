@@ -1,14 +1,24 @@
-# Final Evaluation Report
+# PII Redaction Evaluation Report
 
-This report is generated from `reports/benchmark/required_types_report.json` and `reports/summary_report.json`. It separates controlled benchmark metrics from full-document release QA.
+The nine-type controlled benchmark found 9 true positives with no false positives or false negatives. The final prospectus DOCX passed release QA. This report explains the evaluation method and separates benchmark metrics from full-document checks.
 
-## 1. Evaluation scope
+## Evaluation scope
 
 The benchmark is a **frozen manually defined gold benchmark**, not independently annotated full-document ground truth. It contains one positive exact-span fixture for each assignment-required type and twelve explicit hard-negative blocks.
 
 Required types: `PERSON`, `EMAIL`, `PHONE`, `COMPANY`, `ADDRESS`, `SSN`, `CREDIT_CARD`, `DOB`, and `IPV4`.
 
-## 2. Exact entity/span results
+## Evaluation strategy
+
+The detector is run on a frozen set of 21 text blocks. Nine blocks each contain one manually labeled exact span for an assignment-required type. Twelve hard-negative blocks contain ordinary dates, amounts, page and order references, legal terms, identifiers, and invalid IP or card lookalikes. The gold spans and block manifest define the comparison; predictions are not used to create their own labels.
+
+An exact entity match requires the same PII type, document part, block ID, and start and end offsets as the gold annotation. Matched predictions are true positives; unmatched predictions are false positives; unmatched gold spans are false negatives. Micro precision, recall, and F1 use these counts. Entity-level true negatives are undefined because arbitrary non-entity spans do not form a finite test set.
+
+For classification accuracy, the unit is a text block: a block is positive when it has any gold PII span and predicted-positive when the detector emits any candidate. The fixed manifest supplies both positive and negative blocks, so TP, TN, FP, FN, accuracy, precision, recall, and F1 have explicit denominators. Character coverage is reported separately and is not called classification accuracy.
+
+The supplied prospectus has no complete full-document gold annotations. Its release evaluation instead compares source and output hashes, verifies the DOCX can be opened, checks structural and text-block preservation, confirms selected replacements and media changes, scans processed blocks for approved originals, and requires zero unresolved policy decisions or QA errors. These checks support release readiness; they cannot establish full-document precision, recall, or absence of missed PII.
+
+## Exact entity and span results
 
 | Type | Support | TP | FP | FN | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -22,7 +32,7 @@ Required types: `PERSON`, `EMAIL`, `PHONE`, `COMPANY`, `ADDRESS`, `SSN`, `CREDIT
 | DOB | 1 | 1 | 0 | 0 | 1.0000 | 1.0000 | 1.0000 |
 | IPV4 | 1 | 1 | 0 | 0 | 1.0000 | 1.0000 | 1.0000 |
 
-### Exact-span aggregate
+### Exact span aggregate
 
 - TP: **9**
 - FP: **0**
@@ -33,7 +43,7 @@ Required types: `PERSON`, `EMAIL`, `PHONE`, `COMPANY`, `ADDRESS`, `SSN`, `CREDIT
 
 Entity-level TN is not reported because arbitrary non-entity spans are not a finite classification unit.
 
-## 3. Block-level classification
+## Block classification
 
 Unit: **text block (binary: contains any labeled PII)**.
 
@@ -48,13 +58,13 @@ Formulas:
 - Recall = `TP / (TP + FN)`
 - F1 = `2 × Precision × Recall / (Precision + Recall)`
 
-## 4. Additional character metric
+## Character coverage
 
 Character TP/TN/FP/FN: **185 / 621 / 0 / 0**. Character accuracy: **1.0000**.
 
 Character accuracy is additional coverage evidence and is not called classification accuracy.
 
-## 5. Full RHP release QA
+## Full prospectus release quality assurance
 
 The prospectus does not have full-document gold annotations, so full-document accuracy, precision, recall and F1 are **not claimed**. The following are release/QA measurements:
 
@@ -83,7 +93,7 @@ Company detection and redaction are supported. The real RHP protects legitimate 
 
 The media audit records a decoded QR as REDACT/replaced and an undecoded square logo candidate as IGNORE/preserved. Geometric resemblance alone is not treated as sufficient evidence to replace a graphic.
 
-## 6. Limitations
+## Limitations
 
 - A 100% controlled-benchmark score does not imply 100% performance on unseen documents.
 - spaCy and OCR can still produce false positives or miss fragmented/low-quality text.

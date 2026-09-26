@@ -120,7 +120,7 @@ Build the shareable source/evidence/output archive (it excludes the original DOC
 .\.venv\Scripts\python.exe scripts\build_submission.py
 ```
 
-Archive: `dist/scalarai-pii-redaction-submission.zip`. The build also creates readable PDFs under `output/pdf/` for every project Markdown file and a minimal `reports/media_audit.json` showing which embedded assets were replaced. The original Markdown sources remain in the ZIP, and `readable/EVALUATION_REPORT.pdf` is the final archive entry.
+Archive: `dist/scalarai-pii-redaction-submission.zip`. The build creates readable PDFs under `output/pdf/`, a Word copy at `docs/EVALUATION_REPORT.docx`, and a minimal `reports/media_audit.json` showing which embedded assets were replaced. The Markdown source, Word copy, and PDF evaluation report are grouped at the end of the ZIP, with `readable/EVALUATION_REPORT.pdf` as the final entry.
 
 ## Run the Streamlit UI
 

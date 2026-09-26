@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from docx import Document
+
 from pii_redactor.models import ASSIGNMENT_PII_TYPES
 
 
@@ -79,3 +81,21 @@ def test_packaged_media_audit_matches_summary_and_decisions():
     assert by_name["word/media/image1.jpeg"]["candidates"][0]["policy_action"] == "REDACT"
     assert by_name["word/media/image2.png"]["replaced"] is False
     assert by_name["word/media/image2.png"]["candidates"][0]["policy_action"] == "IGNORE"
+
+
+def test_evaluation_strategy_and_word_copy_match_final_run():
+    markdown = (ROOT / "docs" / "EVALUATION_REPORT.md").read_text(encoding="utf-8")
+    summary = json.loads((ROOT / "reports" / "summary_report.json").read_text(encoding="utf-8"))
+    assert "## Evaluation strategy" in markdown
+    assert "21 text blocks" in markdown
+    assert "predictions are not used to create their own labels" in markdown
+    document = Document(ROOT / "docs" / "EVALUATION_REPORT.docx")
+    word_text = "\n".join(
+        [paragraph.text for paragraph in document.paragraphs]
+        + [cell.text for table in document.tables for row in table.rows for cell in row.cells]
+    )
+    assert "Evaluation strategy" in word_text
+    assert "21 text blocks" in word_text
+    assert summary["source_sha256"] in word_text
+    assert summary["output_sha256"] in word_text
+    assert len(document.tables) == 3
