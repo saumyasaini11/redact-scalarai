@@ -125,17 +125,15 @@ Archive: `dist/scalarai-pii-redaction-submission.zip`.
 python run.py
 ```
 
-The UI exposes the requested flow as:
+The UI presents one flow:
 
-1. Upload
-2. Analyze
-3. View detection summary
-4. Review policy decisions
-5. Redact
-6. Verify/evaluate
-7. Download
+1. Input: upload a DOCX.
+2. Configure: choose replacement and company policy.
+3. Redact: run the same pipeline as the CLI.
+4. Result: see actual detection counts and review pending items.
+5. Deliverables: download the output DOCX and generated reports.
 
-It shows detected counts, protected/redacted/ignored/review counts, QA status and the generated benchmark. Synthetic replacements, company protection and sensitive-media-only handling are the defaults.
+Detailed QA and the benchmark remain available under secondary sections. Synthetic replacements, company protection and sensitive-media-only handling are the defaults.
 
 ## Tests and benchmark
 
@@ -204,7 +202,3 @@ Raw originals, review decisions, identity mappings, uploads and outputs are giti
 The current tree no longer tracks `.venv`, the supplied source DOCX or per-record generated logs. Earlier Git commits did contain `.venv` and the source DOCX; removing those historical blobs requires a coordinated `git filter-repo` rewrite and force-push. That destructive history operation is intentionally not performed automatically.
 
 The final redacted DOCX is a separate assignment artifact under `data/output/`; it is not committed as source code.
-
-## Reference comparison
-
-The evidence-based A–AB comparison is in [docs/COMPARISON.md](docs/COMPARISON.md). The reference has a simpler one-click presentation, while this project retains the stronger policy, deterministic pseudonymization, validation, OCR/media, review, QA and executable evaluation design.

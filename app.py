@@ -14,138 +14,133 @@ from pii_redactor.app_service import (
     AppRun,
     build_download_bundle,
     create_app_run,
-    read_jsonl,
     finalize_pending_privacy_first,
+    read_jsonl,
     save_review_decisions,
 )
 from pii_redactor.benchmark import run_required_type_benchmark
 from pii_redactor.pipeline import run_pipeline
 
 
-st.set_page_config(page_title="DOCX PII Redactor", page_icon="🔐", layout="wide")
-st.title("DOCX PII Redactor")
-st.caption("Local, confidence-aware pseudonymization with review gating, media replacement, QA, and measured evaluation")
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-with st.sidebar:
-    st.header("Redaction policy")
-    mode_label = st.selectbox(
-        "Replacement mode",
-        ["Synthetic pseudonyms", "Mask (obvious redaction)", "Partial masking"],
-        help="Synthetic mode is the assignment default and substitutes deterministic fake alternatives.",
-    )
-    mode = {
-        "Mask (obvious redaction)": "mask",
-        "Synthetic pseudonyms": "synthetic",
-        "Partial masking": "partial",
-    }[mode_label]
+
+def _clear_active_result() -> None:
+    st.session_state.pop("app_run", None)
+    st.session_state.pop("pipeline_result", None)
+
+
+def _download_file(path: Path, mime: str) -> None:
+    if path.exists():
+        st.download_button(path.name, path.read_bytes(), path.name, mime)
+
+
+st.set_page_config(page_title="DOCX PII Redactor", layout="wide")
+st.title("DOCX PII Redactor")
+st.caption("Upload a Word document, review detected PII, and download a pseudonymized copy.")
+
+st.subheader("1. Input")
+uploaded = st.file_uploader(
+    "Upload a .docx file",
+    type=["docx"],
+    key="source_docx",
+    on_change=_clear_active_result,
+)
+if uploaded:
+    st.caption(f"Selected: {uploaded.name}")
+
+st.subheader("2. Configure")
+mode_label = st.selectbox(
+    "Replacement mode",
+    ["Synthetic pseudonyms", "Mask (obvious redaction)", "Partial masking"],
+    help="Synthetic mode substitutes deterministic fake alternatives.",
+)
+mode = {
+    "Mask (obvious redaction)": "mask",
+    "Synthetic pseudonyms": "synthetic",
+    "Partial masking": "partial",
+}[mode_label]
+company_scope = st.selectbox(
+    "Corporate entity policy",
+    ["protect", "review", "redact"],
+    help="Protect keeps legitimate company names and corporate identifiers unchanged while reporting detections.",
+)
+replace_all_media = st.checkbox(
+    "High-security mode: replace all embedded media",
+    value=False,
+    help="Off replaces only media with PII, identity, or QR evidence. On also replaces harmless graphics.",
+)
+with st.expander("More processing options"):
     high_threshold = st.slider("Automatic approval threshold", 0.70, 0.99, 0.85, 0.01)
     medium_threshold = st.slider("Review threshold", 0.30, high_threshold, 0.60, 0.01)
     default_region = st.text_input("Phone region", "IN", max_chars=2).upper()
-    replace_all_media = st.checkbox(
-        "High-security mode: replace all embedded media",
-        value=False,
-        help="Off replaces only media with PII/identity/QR evidence. On also replaces harmless logos and graphics.",
-    )
-    company_scope = st.selectbox(
-        "Corporate entity policy",
-        ["protect", "review", "redact"],
-        help="Protect preserves company names and public corporate identifiers while still detecting and reporting them.",
-    )
     seed = st.text_input(
         "Private deterministic seed",
         value=st.session_state.setdefault("seed", secrets.token_urlsafe(24)),
         type="password",
-        help="The seed stays in this process and makes replacements consistent across repeated identities.",
+        help="The seed stays local and keeps replacements consistent for repeated identities.",
     )
-
-upload_tab, review_tab, evaluation_tab = st.tabs([
-    "Steps 1–3 · Upload, analyze, summary",
-    "Steps 4–5 · Review policy, redact",
-    "Steps 6–7 · Verify, evaluate, download",
-])
-
-with upload_tab:
-    uploaded = st.file_uploader("Upload a Word document", type=["docx"])
     gold_upload = st.file_uploader(
         "Optional gold annotations",
         type=["jsonl"],
-        help="Provide exact spans to calculate document-specific precision, recall, and F1.",
+        help="Provide labeled spans for document-specific precision, recall, and F1.",
     )
-    if uploaded and st.button("Analyze and create review draft", type="primary"):
-        try:
-            app_run = create_app_run(
-                PROJECT_ROOT,
-                uploaded.name,
-                uploaded.getvalue(),
-                seed=seed,
-                mode=mode,
-                high_threshold=high_threshold,
-                medium_threshold=medium_threshold,
-                default_region=default_region,
-                replace_all_media=replace_all_media,
-                company_scope=company_scope,
-                auto_redact_pending=False,
-                tesseract_cmd="",
-            )
-            if gold_upload:
-                (app_run.settings.private_dir / "gold_annotations.jsonl").write_bytes(gold_upload.getvalue())
-            with st.spinner("Scanning native text, relationships, headers, footers, comments, and embedded media..."):
-                result = run_pipeline(app_run.settings)
-            st.session_state["app_run"] = app_run
-            st.session_state["pipeline_result"] = result
-            if result.release_ready:
-                st.success(f"Redaction complete: {result.record_count} candidates processed and QA passed.")
-            else:
-                st.warning(
-                    f"A review draft was created: {result.unresolved_count} decisions remain and "
-                    f"{len(result.qa_errors)} QA findings need attention."
-                )
-        except Exception as exc:
-            st.exception(exc)
 
-    app_run = st.session_state.get("app_run")
-    result = st.session_state.get("pipeline_result")
-    if app_run and result:
-        summary_path = app_run.settings.reports_dir / "summary_report.json"
-        summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
-        cols = st.columns(4)
-        cols[0].metric("Candidates", summary.get("total_candidates", result.record_count))
-        cols[1].metric("Needs review", result.unresolved_count)
-        cols[2].metric("Media replaced", f"{summary.get('media_replaced', 0)}/{summary.get('media_total', 0)}")
-        cols[3].metric("QA errors", len(result.qa_errors))
-        policy_cols = st.columns(4)
-        policy_cols[0].metric("Redacted", summary.get("redacted_entities", 0))
-        policy_cols[1].metric("Protected", summary.get("protected_entities", 0))
-        policy_cols[2].metric("Ignored", summary.get("ignored_entities", 0))
-        policy_cols[3].metric("Policy review", summary.get("policy_review_required", 0))
-        if summary.get("entities_by_type"):
-            st.subheader("Detected PII summary")
-            st.dataframe(
-                [{"PII type": key, "Candidates": value} for key, value in summary["entities_by_type"].items()],
-                width="stretch",
-                hide_index=True,
-            )
-        if result.release_ready:
-            st.success("The final redacted document is ready to download from the review tab.")
-        else:
-            st.warning("This is only a review draft. Do not treat it as a fully redacted document.")
+st.subheader("3. Redact")
+if st.button("Run Redaction", type="primary", disabled=uploaded is None):
+    try:
+        app_run = create_app_run(
+            PROJECT_ROOT,
+            uploaded.name,
+            uploaded.getvalue(),
+            seed=seed,
+            mode=mode,
+            high_threshold=high_threshold,
+            medium_threshold=medium_threshold,
+            default_region=default_region,
+            replace_all_media=replace_all_media,
+            company_scope=company_scope,
+            auto_redact_pending=False,
+            tesseract_cmd="",
+        )
+        if gold_upload:
+            (app_run.settings.private_dir / "gold_annotations.jsonl").write_bytes(gold_upload.getvalue())
+        with st.spinner("Analyzing and redacting the document…"):
+            result = run_pipeline(app_run.settings)
+        st.session_state["app_run"] = app_run
+        st.session_state["pipeline_result"] = result
+    except ValueError as exc:
+        st.error(str(exc))
+    except Exception as exc:
+        st.exception(exc)
 
-with review_tab:
-    app_run: AppRun | None = st.session_state.get("app_run")
-    if not app_run:
-        st.info("Upload and analyze a DOCX first.")
+app_run: AppRun | None = st.session_state.get("app_run")
+result = st.session_state.get("pipeline_result")
+
+if app_run and result:
+    summary_path = app_run.settings.reports_dir / "summary_report.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+    st.subheader("4. Result")
+    if result.release_ready:
+        st.success("Redaction complete. The DOCX passed review gating and automated QA.")
     else:
-        queue_path = app_run.settings.private_dir / "review_queue.jsonl"
-        queue = read_jsonl(queue_path)
-        edited = None
-        source_hash = ""
-        if not queue:
-            st.success("No unresolved records remain. The document can be finalized.")
-        else:
+        st.warning(
+            f"Review draft ready. {result.unresolved_count} policy decisions and "
+            f"{len(result.qa_errors)} QA findings remain."
+        )
+    metrics = st.columns(4)
+    metrics[0].metric("PII detected", summary.get("total_candidates", result.record_count))
+    metrics[1].metric("Redacted", summary.get("redacted_entities", 0))
+    metrics[2].metric("Protected", summary.get("protected_entities", 0))
+    metrics[3].metric("Needs review", result.unresolved_count)
+
+    queue = read_jsonl(app_run.settings.private_dir / "review_queue.jsonl")
+    if queue:
+        with st.expander(f"Review {len(queue)} pending detections", expanded=True):
             source_hash = queue[0]["source_hash"]
-            available_types = sorted({item["pii_type"] for item in queue})
-            selected_types = st.multiselect("Filter review queue by type", available_types, default=available_types)
-            visible_queue = [item for item in queue if item["pii_type"] in selected_types]
+            types = sorted({item["pii_type"] for item in queue})
+            selected_types = st.multiselect("Filter by type", types, default=types)
+            visible = [item for item in queue if item["pii_type"] in selected_types]
             rows = [{
                 "record_id": item["record_id"],
                 "type": item["pii_type"],
@@ -156,20 +151,8 @@ with review_tab:
                 "new_type": "",
                 "identity_id": item.get("identity_id") or "",
                 "note": "",
-            } for item in visible_queue]
-            st.warning("Review values are displayed locally because a human decision is required. They are never included in the shareable bundle.")
-            if st.button(f"Privacy-first finalize {len(queue)} pending items"):
-                try:
-                    finalize_pending_privacy_first(
-                        app_run.settings.private_dir / "review_decisions.jsonl",
-                        queue,
-                    )
-                    with st.spinner("Applying all redactions and running package-wide QA..."):
-                        result = run_pipeline(app_run.settings)
-                    st.session_state["pipeline_result"] = result
-                    st.rerun()
-                except Exception as exc:
-                    st.exception(exc)
+            } for item in visible]
+            st.caption("Review values stay local and are excluded from the shareable bundle.")
             edited = st.data_editor(
                 rows,
                 width="stretch",
@@ -186,108 +169,103 @@ with review_tab:
             )
             if st.button("Save review decisions"):
                 saved = save_review_decisions(
-                    app_run.settings.private_dir / "review_decisions.jsonl",
-                    edited,
-                    source_hash,
+                    app_run.settings.private_dir / "review_decisions.jsonl", edited, source_hash
                 )
                 st.success(f"Saved {saved} decisions.")
-
-        if st.button("Apply decisions and regenerate", type="primary"):
-            try:
-                if edited is not None:
+            if st.button("Apply decisions and regenerate"):
+                try:
                     save_review_decisions(
-                        app_run.settings.private_dir / "review_decisions.jsonl",
-                        edited,
-                        source_hash,
+                        app_run.settings.private_dir / "review_decisions.jsonl", edited, source_hash
                     )
-                with st.spinner("Regenerating the DOCX and running package-wide QA..."):
-                    result = run_pipeline(app_run.settings)
-                st.session_state["pipeline_result"] = result
-                if result.release_ready:
-                    st.success("Final document passed review gating and QA.")
-                else:
-                    st.warning(f"A review draft was regenerated; {result.unresolved_count} decisions remain.")
-            except Exception as exc:
-                st.exception(exc)
+                    with st.spinner("Regenerating the DOCX and checking the output…"):
+                        st.session_state["pipeline_result"] = run_pipeline(app_run.settings)
+                    st.rerun()
+                except Exception as exc:
+                    st.exception(exc)
+            if st.button(f"Privacy-first finalize all {len(queue)} pending items"):
+                try:
+                    finalize_pending_privacy_first(
+                        app_run.settings.private_dir / "review_decisions.jsonl", queue
+                    )
+                    with st.spinner("Applying policy decisions and checking the output…"):
+                        st.session_state["pipeline_result"] = run_pipeline(app_run.settings)
+                    st.rerun()
+                except Exception as exc:
+                    st.exception(exc)
 
-        result = st.session_state.get("pipeline_result")
-        if result and result.output_path.exists():
-            mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            download_label = "Download final redacted DOCX" if result.release_ready else "Download review draft DOCX"
-            st.download_button(download_label, result.output_path.read_bytes(), result.output_path.name, mime)
-            st.download_button(
-                "Download sanitized submission bundle",
-                build_download_bundle(app_run, result.output_path),
-                f"pii-redaction-{app_run.run_id}.zip",
-                "application/zip",
+    with st.expander("View detection and QA details"):
+        details = st.columns(3)
+        details[0].metric("Ignored", summary.get("ignored_entities", 0))
+        details[1].metric("Media replaced", f"{summary.get('media_replaced', 0)}/{summary.get('media_total', 0)}")
+        details[2].metric("QA findings", len(result.qa_errors))
+        if summary.get("entities_by_type"):
+            st.dataframe(
+                [{"PII type": name, "Candidates": count} for name, count in summary["entities_by_type"].items()],
+                width="stretch",
+                hide_index=True,
             )
-            evaluation_path = app_run.root / "docs" / "RHP_QA_REPORT.md"
-            if evaluation_path.exists():
-                st.download_button(
-                    "Download RHP_QA_REPORT.md",
-                    evaluation_path.read_bytes(),
-                    "RHP_QA_REPORT.md",
-                    "text/markdown",
-                )
-            if result.qa_errors:
-                st.error("QA findings: " + "; ".join(result.qa_errors))
+        if result.qa_errors:
+            st.error("; ".join(result.qa_errors))
+        qa_path = app_run.root / "docs" / "RHP_QA_REPORT.md"
+        if qa_path.exists():
+            st.markdown(qa_path.read_text(encoding="utf-8"))
 
-with evaluation_tab:
-    st.subheader("Verification and downloads")
-    current_result = st.session_state.get("pipeline_result")
-    current_run = st.session_state.get("app_run")
-    if current_result:
-        if current_result.release_ready:
-            st.success("Review gate and automated DOCX QA passed.")
-        else:
-            st.warning(
-                f"Not release-ready: {current_result.unresolved_count} review items and "
-                f"{len(current_result.qa_errors)} QA findings remain."
-            )
-    if current_run and current_result and current_result.output_path.exists():
-        st.download_button(
-            "Download current DOCX",
-            current_result.output_path.read_bytes(),
-            current_result.output_path.name,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-    st.subheader("Measured nine-type benchmark")
+st.subheader("5. Deliverables")
+if app_run and result:
+    output_path = result.output_path
+    report_root = app_run.settings.reports_dir
+    docs_root = app_run.root / "docs"
+    st.caption("Current run · final DOCX" if result.release_ready else "Current run · review draft")
+else:
+    output_path = PROJECT_ROOT / "data" / "output" / "Red Herring Prospectus - Pseudonymized.docx"
+    report_root = PROJECT_ROOT / "reports"
+    docs_root = PROJECT_ROOT / "docs"
+    st.caption("Supplied RHP · previously generated files")
+
+deliverables = [
+    (output_path, DOCX_MIME),
+    (docs_root / "RHP_QA_REPORT.md", "text/markdown"),
+    (report_root / "summary_report.json", "application/json"),
+    (report_root / "rhp_release_validation.csv", "text/csv"),
+    (docs_root / "REDACTION_TRACKER.md", "text/markdown"),
+]
+download_columns = st.columns(2)
+for index, (path, mime) in enumerate(deliverables):
+    with download_columns[index % 2]:
+        _download_file(path, mime)
+if app_run and result:
+    st.download_button(
+        f"pii-redaction-{app_run.run_id}.zip",
+        build_download_bundle(app_run, result.output_path),
+        f"pii-redaction-{app_run.run_id}.zip",
+        "application/zip",
+    )
+else:
+    _download_file(PROJECT_ROOT / "dist" / "scalarai-pii-redaction-submission.zip", "application/zip")
+
+with st.expander("More reports and benchmark"):
+    _download_file(report_root / "pii_detection_log.sanitized.jsonl", "application/json")
+    _download_file(PROJECT_ROOT / "docs" / "EVALUATION_REPORT.md", "text/markdown")
     st.write(
-        "This frozen corpus measures exact-span precision, recall, and F1 for PERSON, EMAIL, PHONE, "
-        "COMPANY, ADDRESS, SSN, CREDIT_CARD, DOB, and IPV4. It is reported separately from an "
-        "uploaded document unless gold annotations are supplied."
+        "The frozen benchmark measures all nine required PII types. Its results describe the "
+        "controlled benchmark, not an uploaded document unless gold annotations are supplied."
     )
     if st.button("Run required-type benchmark"):
         try:
-            with st.spinner("Running the production detector against frozen labels..."):
-                report = run_required_type_benchmark(PROJECT_ROOT / "reports" / "benchmark")
-            st.session_state["benchmark_report"] = report
+            with st.spinner("Evaluating the frozen benchmark…"):
+                st.session_state["benchmark_report"] = run_required_type_benchmark(
+                    PROJECT_ROOT / "reports" / "benchmark"
+                )
         except Exception as exc:
             st.exception(exc)
-    report = st.session_state.get("benchmark_report")
-    if report:
-        micro = report["micro"]
-        classification = report["block_classification"]
-        cols = st.columns(5)
-        cols[0].metric("Block accuracy", f"{classification['accuracy']:.3f}")
-        cols[1].metric("Span precision", f"{micro['precision']:.3f}" if micro["precision"] is not None else "N/A")
-        cols[2].metric("Span recall", f"{micro['recall']:.3f}" if micro["recall"] is not None else "N/A")
-        cols[3].metric("Span F1", f"{micro['f1']:.3f}" if micro["f1"] is not None else "N/A")
-        cols[4].metric("Required types", f"{sum(report['required_type_coverage'].values())}/9")
-        st.dataframe(report["rows"], width="stretch", hide_index=True)
-
-    final_evaluation_path = PROJECT_ROOT / "docs" / "EVALUATION_REPORT.md"
-    if final_evaluation_path.exists():
-        st.download_button(
-            "Download EVALUATION_REPORT.md",
-            final_evaluation_path.read_bytes(),
-            "EVALUATION_REPORT.md",
-            "text/markdown",
-        )
-
-    app_run = st.session_state.get("app_run")
-    if app_run:
-        evaluation_path = app_run.root / "docs" / "RHP_QA_REPORT.md"
-        if evaluation_path.exists():
-            st.subheader("Uploaded document evaluation")
-            st.markdown(evaluation_path.read_text(encoding="utf-8"))
+    benchmark_report = st.session_state.get("benchmark_report")
+    if benchmark_report:
+        micro = benchmark_report["micro"]
+        classification = benchmark_report["block_classification"]
+        metrics = st.columns(5)
+        metrics[0].metric("Block accuracy", f"{classification['accuracy']:.3f}")
+        metrics[1].metric("Span precision", f"{micro['precision']:.3f}" if micro["precision"] is not None else "N/A")
+        metrics[2].metric("Span recall", f"{micro['recall']:.3f}" if micro["recall"] is not None else "N/A")
+        metrics[3].metric("Span F1", f"{micro['f1']:.3f}" if micro["f1"] is not None else "N/A")
+        metrics[4].metric("Required types", f"{sum(benchmark_report['required_type_coverage'].values())}/9")
+        st.dataframe(benchmark_report["rows"], width="stretch", hide_index=True)
