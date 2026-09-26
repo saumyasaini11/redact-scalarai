@@ -4,6 +4,46 @@ A local Python application that detects personally identifiable information in W
 
 The application does not claim that every possible PII value is detected. It provides measurable controlled-benchmark evidence, an explicit review/policy gate, and post-save QA so the remaining risk is visible.
 
+**Jump to:** [Quick start](#quick-start) · [How it works](#how-it-works) · [Results](#results-at-a-glance) · [Evaluation](#tests-and-benchmark) · [Security](#security-and-repository-hygiene)
+
+## Quick start
+
+| I want to… | Start here |
+|---|---|
+| Use the browser interface | [Install](#installation-windows-powershell), then [launch Streamlit](#run-the-streamlit-ui) |
+| Run from Python/PowerShell | [Install](#installation-windows-powershell), then [run the CLI](#run-the-cli) |
+| Inspect the evidence | [Benchmark](#tests-and-benchmark), [final QA](#final-rhp-qa-run), and [evaluation report](docs/EVALUATION_REPORT.md) |
+| Submit the deliverables | [Build the ZIP](#run-the-cli), which includes the redacted DOCX and readable reports |
+
+## Results at a glance
+
+The controlled benchmark measures the nine required PII types; the full prospectus is checked by release QA, not assigned benchmark-style precision or recall. See the [benchmark](#tests-and-benchmark) and [final QA](#final-rhp-qa-run) for the underlying counts.
+
+| Controlled benchmark | Full prospectus release |
+|---|---|
+| 9/9 required types detected; exact-span precision, recall and F1: 1.0000 | 2,233 candidates; 340 redacted; 0 unresolved; QA PASS |
+
+## How it works
+
+Both entry points use the same redaction engine. The policy gate determines what changes; detection alone never edits the document.
+
+```text
+  Streamlit UI --+
+                 +--> Shared Python pipeline --> DOCX text + media
+  Python CLI ----+                                  |
+                                                  v
+                                            Detection evidence
+                                                  |
+                                                  v
+                                            Review / policy gate
+                                                  |
+                                                  v
+                                           Approved replacements
+                                                  |
+                                                  v
+                                      Post-save QA --> DOCX + reports + ZIP
+```
+
 ## Problem and policy
 
 The assignment requires a redacted/pseudonymized DOCX and support for nine categories:
@@ -12,19 +52,27 @@ Full names (`PERSON`), email addresses (`EMAIL`), phone numbers (`PHONE`), compa
 
 RHP candidate tables show all nine assignment types, including zero counts when a type was not detected in this document. Additional RHP-specific types are listed separately; a zero count is not proof that a type is absent.
 
-Detection is separate from the release decision:
+The decision tree keeps factual issuer details separate from personal data:
 
 ```text
-DOCX/OCR → detection evidence → confidence/overlap merge
-         → REDACT | PROTECT | REVIEW | IGNORE
-         → deterministic replacement → DOCX/media QA → reports
+Candidate detected
+  +-- legitimate corporate fact (COMPANY, CIN, GSTIN, IFSC) --> PROTECT
+  +-- approved personal PII ----------------------------------> REDACT
+  +-- ambiguous / needs a decision ---------------------------> REVIEW
+  +-- non-PII graphic or false alarm -------------------------> IGNORE
+
+Release is blocked while REVIEW items remain unresolved.
 ```
 
 For the real RHP, `COMPANY`, `CIN`, `GSTIN`, and `IFSC` default to **PROTECT**. Thus `KSH International Limited` is detected and reported but remains unchanged. Personal PII such as a person's name, email, phone or address is pseudonymized after approval. Company redaction is supported: the controlled benchmark measures detection, and a strict-policy DOCX test verifies actual replacement.
 
 ## Architecture
 
-The implementation remains modular:
+The implementation remains modular. Expand the map for the main source files:
+
+<details>
+<summary>Show the Python module map</summary>
+
 
 - `recognizers.py`: Presidio patterns, spaCy NER, context rules, `phonenumbers`, Luhn, IPv4 and SSN validation.
 - `ensemble.py`: evidence merging, confidence bands and overlap resolution.
@@ -36,6 +84,8 @@ The implementation remains modular:
 - `qa.py`: DOCX ZIP/reopen, structural, replacement, residual and media checks.
 - `evaluation.py` and `benchmark.py`: generated exact-span and block-classification metrics.
 - `pipeline.py`, `cli.py`, and `app.py`: one shared engine for CLI and Streamlit.
+
+</details>
 
 Optional Indian extensions (`PAN`, `AADHAAR`, `PASSPORT`, `GSTIN`, `CIN`, `IFSC`) remain available, but they are not counted as substitutes for the assignment's nine required types.
 

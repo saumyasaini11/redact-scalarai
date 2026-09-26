@@ -74,6 +74,7 @@ def _inline(token) -> str:
     if not token.children:
         return escape(token.content)
     result: list[str] = []
+    link_tags: list[str] = []
     for child in token.children:
         kind = child.type
         if kind == "text":
@@ -89,9 +90,17 @@ def _inline(token) -> str:
         elif kind == "em_close":
             result.append("</i>")
         elif kind == "link_open":
-            result.append(f'<link href="{escape(child.attrGet("href") or "", quote=True)}" color="#1E5AA6">')
+            href = child.attrGet("href") or ""
+            if href.startswith(("https://", "http://", "mailto:")):
+                result.append(f'<link href="{escape(href, quote=True)}" color="#1E5AA6">')
+                link_tags.append("link")
+            else:
+                # Markdown section/file links are for the repository; they do not
+                # define PDF destinations in this standalone readable copy.
+                result.append('<font color="#1E5AA6">')
+                link_tags.append("font")
         elif kind == "link_close":
-            result.append("</link>")
+            result.append(f"</{link_tags.pop()}>")
         elif kind == "image":
             result.append(escape(child.content or "image"))
         elif kind == "hardbreak":

@@ -6,6 +6,7 @@ __pycache__/
 # Test caches (disabled via pytest.ini -p no:cacheprovider)
 .pytest_cache/
 .tmp/
+tmp/pdfs/
 
 # Private runtime data — never commit
 data/private/*
