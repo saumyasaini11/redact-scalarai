@@ -61,8 +61,9 @@ The prospectus does not have full-document gold annotations, so full-document ac
 | Check | Result |
 |---|---:|
 | Candidates | 2,233 |
-| Redacted/pseudonymized | 341 |
+| Redacted/pseudonymized | 340 |
 | Protected corporate facts | 1,892 |
+| Ignored non-PII candidates | 1 |
 | Unresolved policy-review items | 0 |
 | Sensitive media replaced | 1 / 8 |
 | Source/output text blocks | 4254 / 4254 |
@@ -72,11 +73,15 @@ The prospectus does not have full-document gold annotations, so full-document ac
 | Automated QA findings | 0 |
 | Release gate | PASS |
 
-Output SHA-256: `13b2d52fcaf6fb054c248154c4f2041450adcbcccdf82035ec333ee486da7110`.
+Source SHA-256: `8b5c93f7642d659e64b51be9f6172c86c2825417f376ca1800ed331515e6f929`.
+
+Output SHA-256: `c16aa903f887e47e97af2e251cb8d78478476c267c22709fb763a8866b97dc40`.
 
 Final DOCX: `data/output/Red Herring Prospectus - Pseudonymized.docx`.
 
-Corporate facts are detected separately from policy. The real RHP uses company protection, while the controlled benchmark still evaluates COMPANY detection.
+Company detection and redaction are supported. The real RHP protects legitimate corporate facts to preserve the issuer's factual content; the controlled benchmark evaluates COMPANY detection, and a strict-policy DOCX test verifies replacement.
+
+The media audit records a decoded QR as REDACT/replaced and an undecoded square logo candidate as IGNORE/preserved. Geometric resemblance alone is not treated as sufficient evidence to replace a graphic.
 
 ## 6. Limitations
 
@@ -85,4 +90,4 @@ Corporate facts are detected separately from policy. The real RHP uses company p
 - Unsupported drawing/text-box encodings may not be represented as ordinary OOXML text blocks.
 - A larger independently annotated RHP sample is the next meaningful evaluation step.
 
-Machine-readable details are in `reports/benchmark/required_types_evaluation.csv`, `reports/benchmark/required_types_report.json`, `reports/rhp_release_validation.csv`, and `reports/summary_report.json`.
+Machine-readable details are in `reports/benchmark/required_types_evaluation.csv`, `reports/benchmark/required_types_report.json`, `reports/rhp_release_validation.csv`, `reports/summary_report.json`, and the packaged `reports/media_audit.json`.

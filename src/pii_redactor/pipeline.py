@@ -162,6 +162,10 @@ def run_pipeline(settings: Settings) -> PipelineResult:
         settings.private_dir / "gold_annotations.jsonl",
         settings.private_dir / "full_dataset_annotation_manifest.private.jsonl",
     )
+    evaluation["source_sha256"] = source_hash
+    evaluation["output_sha256"] = output_hash
+    evaluation["media_total"] = len(media_inventory)
+    evaluation["media_replaced"] = summary["media_replaced"]
     write_evaluation(
         evaluation,
         settings.project_root / "docs" / "RHP_QA_REPORT.md",

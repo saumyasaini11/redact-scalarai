@@ -23,6 +23,7 @@ reports/pii_detection_log.sanitized.jsonl
 
 # Distribution archives
 dist/
+output/pdf/
 
 # Environment
 .env

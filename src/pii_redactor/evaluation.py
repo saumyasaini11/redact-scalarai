@@ -258,6 +258,10 @@ def write_evaluation(
             {"section": "release", "pii_type": "ALL", "metric": "unresolved_review_items", "value": report["unresolved_count"], "notes": "Must be zero for final release"},
             {"section": "release", "pii_type": "ALL", "metric": "release_gate_passed", "value": str(report["release_gate_passed"]).lower(), "notes": "Review-completion gate"},
         ]
+        for key in ("source_sha256", "output_sha256", "media_total", "media_replaced"):
+            if key in report:
+                rows.append({"section": "release", "pii_type": "ALL", "metric": key,
+                             "value": report[key], "notes": "Final DOCX release evidence"})
         rows.extend(
             {"section": "decision_status", "pii_type": "ALL", "metric": key.casefold(), "value": value, "notes": "Reviewed candidate count"}
             for key, value in report["status_counts"].items()
@@ -284,10 +288,18 @@ def write_evaluation(
             f"Review gate: **{'PASS' if report['release_gate_passed'] else 'FAIL'}**", "",
             f"- Total candidates: {report['total_candidates']}",
             f"- Unresolved review items: {report['unresolved_count']}",
+        ]
+        if "source_sha256" in report:
+            lines.append(f"- Source SHA-256: `{report['source_sha256']}`")
+        if "output_sha256" in report:
+            lines.append(f"- Output SHA-256: `{report['output_sha256']}`")
+        if "media_total" in report and "media_replaced" in report:
+            lines.append(f"- Sensitive media replaced: {report['media_replaced']} / {report['media_total']}")
+        lines.extend([
             "", "## Detection confidence status", "",
             "A `NEEDS_REVIEW` confidence flag is not unresolved when the explicit company/protection policy has already classified it.",
             "", "| Status | Count |", "|---|---:|",
-        ]
+        ])
         lines.extend(f"| {key} | {value} |" for key, value in report["status_counts"].items())
         lines.extend(["", "## Final policy actions", "", "| Action | Count |", "|---|---:|"])
         lines.extend(f"| {key} | {value} |" for key, value in report["policy_counts"].items())

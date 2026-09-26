@@ -46,6 +46,7 @@ def selected_media_replacements(
     clear_names = {
         item.media_name for item in records
         if item.media_name and item.policy_locked and item.policy_action == PolicyAction.IGNORE
+        and item.policy_reason.startswith("Explicit")
     }
     redact_names = {
         item.media_name for item in records

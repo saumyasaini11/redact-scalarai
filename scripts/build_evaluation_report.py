@@ -102,6 +102,7 @@ def build_report() -> Path:
         f"| Candidates | {summary['total_candidates']:,} |",
         f"| Redacted/pseudonymized | {summary['redacted_entities']:,} |",
         f"| Protected corporate facts | {summary['protected_entities']:,} |",
+        f"| Ignored non-PII candidates | {summary['ignored_entities']:,} |",
         f"| Unresolved policy-review items | {summary['unresolved_review_items']} |",
         f"| Sensitive media replaced | {summary['media_replaced']} / {summary['media_total']} |",
         f"| Source/output text blocks | {summary['source_text_blocks']} / {summary['output_text_blocks']} |",
@@ -111,12 +112,19 @@ def build_report() -> Path:
         f"| Automated QA findings | {len(summary['qa_errors'])} |",
         f"| Release gate | {'PASS' if summary['release_ready'] else 'FAIL'} |",
         "",
+        f"Source SHA-256: `{summary['source_sha256']}`.",
+        "",
         f"Output SHA-256: `{summary['output_sha256']}`.",
         "",
         f"Final DOCX: `{summary['output_path'].replace(chr(92), '/')}`.",
         "",
-        "Corporate facts are detected separately from policy. The real RHP uses company "
-        "protection, while the controlled benchmark still evaluates COMPANY detection.",
+        "Company detection and redaction are supported. The real RHP protects legitimate "
+        "corporate facts to preserve the issuer's factual content; the controlled benchmark "
+        "evaluates COMPANY detection, and a strict-policy DOCX test verifies replacement.",
+        "",
+        "The media audit records a decoded QR as REDACT/replaced and an undecoded square "
+        "logo candidate as IGNORE/preserved. Geometric resemblance alone is not treated "
+        "as sufficient evidence to replace a graphic.",
         "",
         "## 6. Limitations",
         "",
@@ -127,7 +135,7 @@ def build_report() -> Path:
         "",
         "Machine-readable details are in `reports/benchmark/required_types_evaluation.csv`, "
         "`reports/benchmark/required_types_report.json`, `reports/rhp_release_validation.csv`, "
-        "and `reports/summary_report.json`.",
+        "`reports/summary_report.json`, and the packaged `reports/media_audit.json`.",
     ])
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")

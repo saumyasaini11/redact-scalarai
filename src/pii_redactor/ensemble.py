@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from .models import PIIRecord, PIIType, ReviewStatus
+from .models import PIIRecord, PIIType, PolicyAction, ReviewStatus
 
 
 TYPE_PRIORITY = {
@@ -51,7 +51,9 @@ def merge_and_score(records: list[PIIRecord], high_threshold: float,
         independent = len({item.source for item in record.evidence})
         corroboration = max(0, independent - 1) * 0.08
         record.final_confidence = min(0.99, base + corroboration)
-        if record.final_confidence >= high_threshold:
+        if record.policy_locked and record.policy_action == PolicyAction.IGNORE:
+            record.review_status = ReviewStatus.REJECTED_AS_NON_PII
+        elif record.final_confidence >= high_threshold:
             record.review_status = ReviewStatus.AUTO_APPROVED
         elif record.final_confidence >= medium_threshold:
             record.review_status = ReviewStatus.NEEDS_REVIEW
@@ -101,4 +103,3 @@ def merge_and_score(records: list[PIIRecord], high_threshold: float,
         resolved,
         key=lambda item: (item.document_part, item.block_id, item.start_offset, item.pii_type.value),
     )
-

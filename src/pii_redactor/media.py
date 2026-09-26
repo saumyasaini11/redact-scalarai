@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import pytesseract
 
-from .models import DetectionSource, Evidence, PIIRecord, PIIType, ReviewStatus, TextBlock
+from .models import DetectionSource, Evidence, PIIRecord, PIIType, PolicyAction, ReviewStatus, TextBlock
 from .recognizers import StructuredRecognizerSet, normalize_value
 
 
@@ -133,11 +133,22 @@ def analyze_media(media: dict[str, bytes], default_region: str, tesseract_cmd: s
                 name, PIIType.COMPANY, ocr_text[:160], 0.85,
                 "Commercial logo or organization text in media", DetectionSource.OCR, width, height,
             ))
-        if qr_value or (width <= 400 and height <= 400 and abs(width - height) <= max(width, height) * 0.35):
+        if qr_value:
             records.append(_media_record(
-                name, PIIType.QR_CODE, qr_value or "undecoded-qr-like-media", 0.98,
-                "QR code or machine-readable square media", DetectionSource.QR_DETECTOR, width, height,
+                name, PIIType.QR_CODE, qr_value, 0.98,
+                "Decoded QR code", DetectionSource.QR_DETECTOR, width, height,
             ))
+        elif width <= 400 and height <= 400 and abs(width - height) <= max(width, height) * 0.35:
+            candidate = _media_record(
+                name, PIIType.QR_CODE, "undecoded-qr-like-media", 0.55,
+                "QR-like square geometry without a decoded payload", DetectionSource.QR_DETECTOR,
+                width, height,
+            )
+            candidate.review_status = ReviewStatus.REJECTED_AS_NON_PII
+            candidate.policy_action = PolicyAction.IGNORE
+            candidate.policy_reason = "Undecoded square geometry alone is insufficient evidence to redact media"
+            candidate.policy_locked = True
+            records.append(candidate)
 
         sensitive = replace_all or bool(identity_hits or qr_value or ocr_records)
         if sensitive:

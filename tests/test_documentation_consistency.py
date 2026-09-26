@@ -27,9 +27,14 @@ def test_readme_matches_generated_benchmark_and_rhp_summary():
     assert f"| Candidates | {summary['total_candidates']:,} |" in readme
     assert f"| Redacted/pseudonymized by policy | {summary['redacted_entities']:,} |" in readme
     assert f"| Protected corporate facts | {summary['protected_entities']:,} |" in readme
+    assert f"| Ignored non-PII candidates | {summary['ignored_entities']:,} |" in readme
     assert summary["release_ready"] is True
     assert summary["qa_errors"] == []
-    assert f"Output SHA-256: `{summary['output_sha256']}`" in evaluation
+    for path in (ROOT / "README.md", ROOT / "docs" / "EVALUATION_REPORT.md",
+                 ROOT / "docs" / "RHP_QA_REPORT.md", ROOT / "docs" / "REDACTION_TRACKER.md"):
+        content = path.read_text(encoding="utf-8")
+        assert summary["source_sha256"] in content
+        assert summary["output_sha256"] in content
     final_name = "Red Herring Prospectus - Pseudonymized.docx"
     assert final_name in readme
     assert final_name in evaluation
@@ -60,3 +65,17 @@ def test_rhp_reports_show_all_assignment_types_with_actual_counts():
     assert "## Additional detected types" in qa
     for extra_type in ("CIN", "QR_CODE"):
         assert f"| {extra_type} | {counts[extra_type]} |" in qa
+
+
+def test_packaged_media_audit_matches_summary_and_decisions():
+    summary = json.loads((ROOT / "reports" / "summary_report.json").read_text(encoding="utf-8"))
+    audit = json.loads((ROOT / "reports" / "media_audit.json").read_text(encoding="utf-8"))
+    assert audit["source_sha256"] == summary["source_sha256"]
+    assert audit["output_sha256"] == summary["output_sha256"]
+    assert len(audit["assets"]) == audit["media_total"] == summary["media_total"]
+    assert sum(item["replaced"] for item in audit["assets"]) == summary["media_replaced"]
+    by_name = {item["media_name"]: item for item in audit["assets"]}
+    assert by_name["word/media/image1.jpeg"]["replaced"] is True
+    assert by_name["word/media/image1.jpeg"]["candidates"][0]["policy_action"] == "REDACT"
+    assert by_name["word/media/image2.png"]["replaced"] is False
+    assert by_name["word/media/image2.png"]["candidates"][0]["policy_action"] == "IGNORE"

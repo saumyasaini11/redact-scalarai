@@ -20,7 +20,7 @@ DOCX/OCR → detection evidence → confidence/overlap merge
          → deterministic replacement → DOCX/media QA → reports
 ```
 
-For the real RHP, `COMPANY`, `CIN`, `GSTIN`, and `IFSC` default to **PROTECT**. Thus `KSH International Limited` is detected and reported but remains unchanged. Personal PII such as a person's name, email, phone or address is pseudonymized after approval. Strict benchmark mode still measures company detection independently of this production policy.
+For the real RHP, `COMPANY`, `CIN`, `GSTIN`, and `IFSC` default to **PROTECT**. Thus `KSH International Limited` is detected and reported but remains unchanged. Personal PII such as a person's name, email, phone or address is pseudonymized after approval. Company redaction is supported: the controlled benchmark measures detection, and a strict-policy DOCX test verifies actual replacement.
 
 ## Architecture
 
@@ -63,13 +63,13 @@ An HMAC seed makes the mapping deterministic without putting original values in 
 
 Text traversal includes body paragraphs, arbitrary nested tables, headers, footers, footnotes, endnotes and comments when those parts exist. Replacements operate on OOXML text nodes so multi-run values can be changed without flattening the paragraph. External relationship targets are patched only when they contain an approved value; internal package paths are not altered.
 
-Media is extracted, hashed and inspected locally. The default replaces only media with structured PII, identity-document terms or decoded QR evidence. The UI's explicitly labeled high-security option replaces every embedded image, including harmless logos. Tesseract is optional; without it, native DOCX processing still works and OCR evidence is unavailable.
+Media is extracted, hashed and inspected locally. The default replaces only media with structured PII, identity-document terms or decoded QR evidence. Undecoded square/logo candidates are audited as ignored and preserved; geometric resemblance alone does not trigger replacement. The UI's explicitly labeled high-security option replaces every embedded image, including harmless logos. Tesseract is optional; without it, native DOCX processing still works and OCR evidence is unavailable.
 
 Post-save QA verifies that the output is a valid ZIP/DOCX, can be reopened by `python-docx`, preserves structural element counts, contains each expected replacement, changes selected media, and has no approved original remaining in its original processed block. This is strong release evidence, not proof that an undetected value cannot exist.
 
 ## Installation (Windows PowerShell)
 
-Python 3.12 is the verified runtime. The lock file is authoritative.
+Python 3.12 is the verified runtime. `requirements.txt` is the standard dependency entry point for hosting; `requirements.lock` remains the frozen local environment used by the launcher.
 
 ```powershell
 git clone https://github.com/saumyasaini11/redact-scalarai.git
@@ -116,10 +116,11 @@ Final output: `data/output/Red Herring Prospectus - Pseudonymized.docx`.
 Build the shareable source/evidence/output archive (it excludes the original DOCX and private mappings):
 
 ```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-pdf.txt
 .\.venv\Scripts\python.exe scripts\build_submission.py
 ```
 
-Archive: `dist/scalarai-pii-redaction-submission.zip`.
+Archive: `dist/scalarai-pii-redaction-submission.zip`. The build also creates readable PDFs under `output/pdf/` for every project Markdown file and a minimal `reports/media_audit.json` showing which embedded assets were replaced. The original Markdown sources remain in the ZIP, and `readable/EVALUATION_REPORT.pdf` is the final archive entry.
 
 ## Run the Streamlit UI
 
@@ -167,14 +168,19 @@ The final clean policy run produced:
 | Item | Result |
 |---|---:|
 | Candidates | 2,233 |
-| Redacted/pseudonymized by policy | 341 |
+| Redacted/pseudonymized by policy | 340 |
 | Protected corporate facts | 1,892 |
+| Ignored non-PII candidates | 1 |
 | Unresolved policy-review items | 0 |
 | Sensitive media replaced | 1 / 8 |
 | Replacement application failures | 0 |
 | Residual approved originals in processed blocks | 0 |
 | Automated QA findings | 0 |
 | DOCX release gate | PASS |
+
+Source SHA-256: `8b5c93f7642d659e64b51be9f6172c86c2825417f376ca1800ed331515e6f929`.
+
+Final DOCX SHA-256: `c16aa903f887e47e97af2e251cb8d78478476c267c22709fb763a8866b97dc40`.
 
 `KSH International Limited` remains in the output; the verified contact name `Sarthak Malvadkar` does not. See [final evaluation](docs/EVALUATION_REPORT.md), [RHP QA](docs/RHP_QA_REPORT.md), [tracker](docs/REDACTION_TRACKER.md), and `reports/summary_report.json`. No full-document precision, recall or accuracy is reported because the RHP does not have full-document gold annotations.
 

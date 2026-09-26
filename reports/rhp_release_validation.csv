@@ -2,11 +2,17 @@ section,pii_type,metric,value,notes
 release,ALL,total_candidates,2233,All centralized detections
 release,ALL,unresolved_review_items,0,Must be zero for final release
 release,ALL,release_gate_passed,true,Review-completion gate
+release,ALL,source_sha256,8b5c93f7642d659e64b51be9f6172c86c2825417f376ca1800ed331515e6f929,Final DOCX release evidence
+release,ALL,output_sha256,c16aa903f887e47e97af2e251cb8d78478476c267c22709fb763a8866b97dc40,Final DOCX release evidence
+release,ALL,media_total,8,Final DOCX release evidence
+release,ALL,media_replaced,1,Final DOCX release evidence
 decision_status,ALL,approved,134,Reviewed candidate count
-decision_status,ALL,auto_approved,458,Reviewed candidate count
+decision_status,ALL,auto_approved,457,Reviewed candidate count
 decision_status,ALL,needs_review,1641,Reviewed candidate count
+decision_status,ALL,rejected_as_non_pii,1,Reviewed candidate count
+policy_action,ALL,ignore,1,Final release policy count
 policy_action,ALL,protect,1892,Final release policy count
-policy_action,ALL,redact,341,Final release policy count
+policy_action,ALL,redact,340,Final release policy count
 candidate_type,PERSON,candidate_count,237,Assignment-required type; detected candidate count
 candidate_type,EMAIL,candidate_count,50,Assignment-required type; detected candidate count
 candidate_type,PHONE,candidate_count,33,Assignment-required type; detected candidate count

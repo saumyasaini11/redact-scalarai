@@ -6,6 +6,9 @@ Review gate: **PASS**
 
 - Total candidates: 2233
 - Unresolved review items: 0
+- Source SHA-256: `8b5c93f7642d659e64b51be9f6172c86c2825417f376ca1800ed331515e6f929`
+- Output SHA-256: `c16aa903f887e47e97af2e251cb8d78478476c267c22709fb763a8866b97dc40`
+- Sensitive media replaced: 1 / 8
 
 ## Detection confidence status
 
@@ -14,15 +17,17 @@ A `NEEDS_REVIEW` confidence flag is not unresolved when the explicit company/pro
 | Status | Count |
 |---|---:|
 | APPROVED | 134 |
-| AUTO_APPROVED | 458 |
+| AUTO_APPROVED | 457 |
 | NEEDS_REVIEW | 1641 |
+| REJECTED_AS_NON_PII | 1 |
 
 ## Final policy actions
 
 | Action | Count |
 |---|---:|
+| IGNORE | 1 |
 | PROTECT | 1892 |
-| REDACT | 341 |
+| REDACT | 340 |
 
 ## Assignment-required PII types
 

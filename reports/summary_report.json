@@ -1,8 +1,8 @@
 {
   "source_sha256": "8b5c93f7642d659e64b51be9f6172c86c2825417f376ca1800ed331515e6f929",
-  "output_sha256": "13b2d52fcaf6fb054c248154c4f2041450adcbcccdf82035ec333ee486da7110",
+  "output_sha256": "c16aa903f887e47e97af2e251cb8d78478476c267c22709fb763a8866b97dc40",
   "output_path": "data\\output\\Red Herring Prospectus - Pseudonymized.docx",
-  "seed_fingerprint": "5f07583754c170ad",
+  "seed_fingerprint": "ae9ca30660ed6631",
   "total_candidates": 2233,
   "entities_by_type": {
     "ADDRESS": 19,
@@ -15,12 +15,14 @@
   },
   "entities_by_status": {
     "APPROVED": 134,
-    "AUTO_APPROVED": 458,
-    "NEEDS_REVIEW": 1641
+    "AUTO_APPROVED": 457,
+    "NEEDS_REVIEW": 1641,
+    "REJECTED_AS_NON_PII": 1
   },
   "entities_by_policy": {
+    "IGNORE": 1,
     "PROTECT": 1892,
-    "REDACT": 341
+    "REDACT": 340
   },
   "evidence_by_source": {
     "CHECKSUM_VALIDATOR": 33,
@@ -31,14 +33,14 @@
     "QR_DETECTOR": 2,
     "SPACY_NER": 2008
   },
-  "automatically_replaced": 207,
-  "redacted_entities": 341,
+  "automatically_replaced": 206,
+  "redacted_entities": 340,
   "protected_entities": 1892,
-  "ignored_entities": 0,
+  "ignored_entities": 1,
   "policy_review_required": 0,
   "review_approved": 0,
   "policy_finalized": 134,
-  "review_rejected": 0,
+  "review_rejected": 1,
   "manual_review_required": 0,
   "confidence_review_flags": 1641,
   "low_confidence_inspection": 0,

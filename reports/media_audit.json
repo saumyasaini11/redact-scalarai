@@ -1,0 +1,60 @@
+{
+  "source_sha256": "8b5c93f7642d659e64b51be9f6172c86c2825417f376ca1800ed331515e6f929",
+  "output_sha256": "c16aa903f887e47e97af2e251cb8d78478476c267c22709fb763a8866b97dc40",
+  "media_total": 8,
+  "media_replaced": 1,
+  "assets": [
+    {
+      "media_name": "word/media/image1.jpeg",
+      "replaced": true,
+      "candidates": [
+        {
+          "pii_type": "QR_CODE",
+          "policy_action": "REDACT",
+          "policy_reason": "Approved PII under the active redaction policy"
+        }
+      ]
+    },
+    {
+      "media_name": "word/media/image1.png",
+      "replaced": false,
+      "candidates": []
+    },
+    {
+      "media_name": "word/media/image2.jpeg",
+      "replaced": false,
+      "candidates": []
+    },
+    {
+      "media_name": "word/media/image2.png",
+      "replaced": false,
+      "candidates": [
+        {
+          "pii_type": "QR_CODE",
+          "policy_action": "IGNORE",
+          "policy_reason": "Undecoded square geometry alone is insufficient evidence to redact media"
+        }
+      ]
+    },
+    {
+      "media_name": "word/media/image3.jpeg",
+      "replaced": false,
+      "candidates": []
+    },
+    {
+      "media_name": "word/media/image3.png",
+      "replaced": false,
+      "candidates": []
+    },
+    {
+      "media_name": "word/media/image4.png",
+      "replaced": false,
+      "candidates": []
+    },
+    {
+      "media_name": "word/media/image5.png",
+      "replaced": false,
+      "candidates": []
+    }
+  ]
+}

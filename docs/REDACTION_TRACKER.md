@@ -1,20 +1,20 @@
 # PII Redaction Tracker
 
 - Source SHA-256: `8b5c93f7642d659e64b51be9f6172c86c2825417f376ca1800ed331515e6f929`
-- Output SHA-256: `13b2d52fcaf6fb054c248154c4f2041450adcbcccdf82035ec333ee486da7110`
+- Output SHA-256: `c16aa903f887e47e97af2e251cb8d78478476c267c22709fb763a8866b97dc40`
 - Release ready: `True`
 - Total candidates reviewed: `2233`
-- Automatically replaced: `207`
-- Redacted by policy: `341`
+- Automatically replaced: `206`
+- Redacted by policy: `340`
 - Protected by policy: `1892`
-- Ignored by policy: `0`
+- Ignored by policy: `1`
 - Approved during review: `0`
 - Finalized by explicit privacy-first policy: `134`
-- Rejected as non-PII: `0`
+- Rejected as non-PII: `1`
 - Manual review required: `0`
 - Confidence flags resolved by policy: `1641`
 - Low-confidence inspection: `0`
-- Embedded images replaced: `1/8`
+- Media replaced: `1/8`
 - Text blocks preserved: `4254/4254`
 - DOCX structure signature preserved: `True`
 
@@ -45,8 +45,9 @@ Counts are detected candidates in this document. Zero means none were detected, 
 
 | Action | Count |
 |---|---:|
+| IGNORE | 1 |
 | PROTECT | 1892 |
-| REDACT | 341 |
+| REDACT | 340 |
 
 ## Evidence by source
 
