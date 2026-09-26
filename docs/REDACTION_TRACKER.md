@@ -1,43 +1,52 @@
 # PII Redaction Tracker
 
 - Source SHA-256: `8b5c93f7642d659e64b51be9f6172c86c2825417f376ca1800ed331515e6f929`
-- Output SHA-256: `de09ada7e4365f56e0657bbc13245a6ec4e4b9c8df956a464fa2653b3d902696`
+- Output SHA-256: `13b2d52fcaf6fb054c248154c4f2041450adcbcccdf82035ec333ee486da7110`
 - Release ready: `True`
-- Total candidates reviewed: `2316`
-- Automatically replaced: `289`
-- Approved during review: `281`
-- Rejected as non-PII: `1746`
+- Total candidates reviewed: `2233`
+- Automatically replaced: `207`
+- Redacted by policy: `341`
+- Protected by policy: `1892`
+- Ignored by policy: `0`
+- Approved during review: `0`
+- Finalized by explicit privacy-first policy: `134`
+- Rejected as non-PII: `0`
 - Manual review required: `0`
+- Confidence flags resolved by policy: `1641`
 - Low-confidence inspection: `0`
-- Media replaced: `8/8`
+- Media replaced: `1/8`
+- Text blocks preserved: `4254/4254`
+- DOCX structure signature preserved: `True`
 
 ## Counts by type
 
 | Type | Count |
 |---|---:|
-| AADHAAR | 2 |
 | ADDRESS | 19 |
-| BIOMETRIC | 2 |
 | CIN | 9 |
-| COMPANY | 1959 |
-| DOB | 2 |
+| COMPANY | 1883 |
 | EMAIL | 50 |
-| PAN | 1 |
-| PERSON | 236 |
-| PHONE | 34 |
+| PERSON | 237 |
+| PHONE | 33 |
 | QR_CODE | 2 |
+
+## Policy decisions
+
+| Action | Count |
+|---|---:|
+| PROTECT | 1892 |
+| REDACT | 341 |
 
 ## Evidence by source
 
 | Source | Contributions |
 |---|---:|
-| CHECKSUM_VALIDATOR | 34 |
-| CONTEXT_RULE | 21 |
+| CHECKSUM_VALIDATOR | 33 |
+| CONTEXT_RULE | 19 |
 | GAZETTEER | 238 |
-| HUMAN_REVIEW | 2027 |
-| OCR | 14 |
-| PRESIDIO_PATTERN | 62 |
+| POLICY | 134 |
+| PRESIDIO_PATTERN | 59 |
 | QR_DETECTOR | 2 |
-| SPACY_NER | 2077 |
+| SPACY_NER | 2008 |
 
 Raw originals and mappings are intentionally excluded from this tracker.

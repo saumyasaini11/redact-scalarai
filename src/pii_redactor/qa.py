@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 from pathlib import Path
+import re
 from zipfile import BadZipFile, ZipFile
 
 from docx import Document
@@ -39,18 +40,42 @@ def validate_docx(path: str | Path) -> list[str]:
 
 
 def scan_original_values(path: str | Path, records: list[PIIRecord]) -> list[str]:
-    originals = {
-        item.original_text.casefold()
-        for item in records
-        if item.original_text and len(item.original_text.strip()) >= 4
+    """Return originals that remain in the same native-text block after replacement."""
+    from .docx_io import DocxPackage
+
+    output_blocks = {
+        block.block_id: block.text.casefold()
+        for block in DocxPackage(path).extract_blocks()
     }
-    with ZipFile(path) as archive:
-        corpus_parts: list[str] = []
-        for name in archive.namelist():
-            if name.endswith((".xml", ".rels")):
-                corpus_parts.append(archive.read(name).decode("utf-8", "ignore"))
-        corpus = "\n".join(corpus_parts).casefold()
-    return sorted(value for value in originals if value in corpus)
+    replacements = sorted({
+        item.replacement_value.casefold()
+        for item in records
+        if item.replacement_value
+    }, key=len, reverse=True)
+    if replacements:
+        replacement_pattern = re.compile("|".join(re.escape(value) for value in replacements))
+        output_blocks = {
+            block_id: replacement_pattern.sub("", text)
+            for block_id, text in output_blocks.items()
+        }
+
+    def original_pattern(value: str) -> re.Pattern[str]:
+        prefix = r"(?<!\w)" if value[0].isalnum() else ""
+        suffix = r"(?!\w)" if value[-1].isalnum() else ""
+        return re.compile(prefix + re.escape(value) + suffix, re.IGNORECASE)
+
+    residuals: set[str] = set()
+    for item in records:
+        if (
+            item.source_kind != "native_text"
+            or not item.original_text
+            or len(item.original_text.strip()) < 4
+        ):
+            continue
+        original = item.original_text.casefold()
+        if original_pattern(original).search(output_blocks.get(item.block_id, "")):
+            residuals.add(original)
+    return sorted(residuals)
 
 
 def replacement_application_failures(path: str | Path, records: list[PIIRecord]) -> list[str]:
@@ -75,7 +100,7 @@ def media_hashes(path: str | Path) -> dict[str, str]:
         }
 
 
-def _structure_signature(path: str | Path) -> dict[str, int]:
+def structure_signature(path: str | Path) -> dict[str, int]:
     names = {
         "paragraphs": "p", "tables": "tbl", "rows": "tr", "cells": "tc",
         "sections": "sectPr", "drawings": "drawing", "headers": "headerReference",
@@ -96,8 +121,8 @@ def _structure_signature(path: str | Path) -> dict[str, int]:
 
 
 def validate_structure_preservation(source_path: str | Path, output_path: str | Path) -> list[str]:
-    source = _structure_signature(source_path)
-    output = _structure_signature(output_path)
+    source = structure_signature(source_path)
+    output = structure_signature(output_path)
     errors: list[str] = []
     for key in source:
         if source[key] != output[key]:

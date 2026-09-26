@@ -1,9 +1,9 @@
-{"pii_type": "PERSON", "document_part": "benchmark/document.xml", "block_id": "benchmark#p1", "start_offset": 16, "end_offset": 37, "source_kind": "native_text"}
+{"pii_type": "PERSON", "document_part": "benchmark/document.xml", "block_id": "benchmark#p1", "start_offset": 16, "end_offset": 26, "source_kind": "native_text"}
 {"pii_type": "EMAIL", "document_part": "benchmark/document.xml", "block_id": "benchmark#p2", "start_offset": 7, "end_offset": 36, "source_kind": "native_text"}
 {"pii_type": "PHONE", "document_part": "benchmark/document.xml", "block_id": "benchmark#p3", "start_offset": 11, "end_offset": 26, "source_kind": "native_text"}
 {"pii_type": "ADDRESS", "document_part": "benchmark/document.xml", "block_id": "benchmark#p4", "start_offset": 9, "end_offset": 52, "source_kind": "native_text"}
 {"pii_type": "COMPANY", "document_part": "benchmark/document.xml", "block_id": "benchmark#p5", "start_offset": 9, "end_offset": 45, "source_kind": "native_text"}
 {"pii_type": "DOB", "document_part": "benchmark/document.xml", "block_id": "benchmark#p6", "start_offset": 15, "end_offset": 25, "source_kind": "native_text"}
-{"pii_type": "PAN", "document_part": "benchmark/document.xml", "block_id": "benchmark#p7", "start_offset": 5, "end_offset": 15, "source_kind": "native_text"}
-{"pii_type": "AADHAAR", "document_part": "benchmark/document.xml", "block_id": "benchmark#p8", "start_offset": 9, "end_offset": 23, "source_kind": "native_text"}
-{"pii_type": "CREDIT_CARD", "document_part": "benchmark/document.xml", "block_id": "benchmark#p9", "start_offset": 14, "end_offset": 33, "source_kind": "native_text"}
+{"pii_type": "SSN", "document_part": "benchmark/document.xml", "block_id": "benchmark#p7", "start_offset": 5, "end_offset": 16, "source_kind": "native_text"}
+{"pii_type": "CREDIT_CARD", "document_part": "benchmark/document.xml", "block_id": "benchmark#p8", "start_offset": 14, "end_offset": 33, "source_kind": "native_text"}
+{"pii_type": "IPV4", "document_part": "benchmark/document.xml", "block_id": "benchmark#p9", "start_offset": 11, "end_offset": 23, "source_kind": "native_text"}

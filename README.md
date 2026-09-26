@@ -1,222 +1,210 @@
 # DOCX PII Redaction Studio
 
-A local, privacy-first tool for pseudonymizing sensitive personal information in Microsoft Word documents. Upload a `.docx`, let the tool find and replace every piece of PII with realistic synthetic data, review anything it's unsure about, and download a clean, auditable output — all without sending a single byte to an external server.
+A local Python application that detects personally identifiable information in Word documents and replaces approved personal data with deterministic synthetic alternatives. It was built for the supplied KSH International Limited Red Herring Prospectus (RHP), where legitimate corporate facts must remain unchanged.
 
-Built for the Indian regulatory context (PAN, Aadhaar, GSTIN, CIN, IFSC, etc.) while also covering universal types like email, phone, credit card, and IP address.
+The application does not claim that every possible PII value is detected. It provides measurable controlled-benchmark evidence, an explicit review/policy gate, and post-save QA so the remaining risk is visible.
 
----
+## Problem and policy
 
-## How it works
+The assignment requires a redacted/pseudonymized DOCX and support for nine categories:
 
-At a high level, the pipeline does five things:
+`PERSON`, `EMAIL`, `PHONE`, `COMPANY`, `ADDRESS`, `SSN`, `CREDIT_CARD`, `DOB`, and `IPV4`.
 
-1. **Detects PII** — runs regex/Presidio pattern recognizers, a spaCy NER pass, checksum validators (Luhn, Verhoeff, phonenumbers), and OCR on embedded images
-2. **Scores confidence** — merges evidence from all detectors into a single confidence score per candidate
-3. **Routes for review** — high-confidence hits are auto-approved; borderline ones go to a human review queue; anything below the lower threshold is flagged for inspection
-4. **Replaces values** — approved candidates get a deterministic synthetic replacement (or a stable mask/partial token, depending on your mode). The same original value always produces the same replacement within a run.
-5. **Validates output** — checksums the output file, scans for residual originals in the XML, and confirms all embedded media was replaced
+Detection is separate from the release decision:
 
-Nothing leaves your machine. Raw detections, identity mappings, and review decisions are written to `data/private/` which is gitignored and never included in the shareable download bundle.
+```text
+DOCX/OCR → detection evidence → confidence/overlap merge
+         → REDACT | PROTECT | REVIEW | IGNORE
+         → deterministic replacement → DOCX/media QA → reports
+```
 
----
+For the real RHP, `COMPANY`, `CIN`, `GSTIN`, and `IFSC` default to **PROTECT**. Thus `KSH International Limited` is detected and reported but remains unchanged. Personal PII such as a person's name, email, phone or address is pseudonymized after approval. Strict benchmark mode still measures company detection independently of this production policy.
 
-## Benchmark results
+## Architecture
 
-The tool was evaluated against a frozen, independently labeled benchmark covering 9 PII types. These are real measured numbers — not estimates.
+The implementation remains modular:
 
-| Metric | Score |
+- `recognizers.py`: Presidio patterns, spaCy NER, context rules, `phonenumbers`, Luhn, IPv4 and SSN validation.
+- `ensemble.py`: evidence merging, confidence bands and overlap resolution.
+- `policy.py`: REDACT/PROTECT/REVIEW/IGNORE decisions, independent of detection.
+- `relationships.py` and `pseudonyms.py`: stable identities and HMAC-derived fake alternatives.
+- `docx_io.py`: direct OOXML traversal and run-preserving span replacement.
+- `media.py`: local OCR, QR inspection, sensitive-media placeholders and media hashes.
+- `review.py`: source-hash-bound review decisions and unresolved-item gating.
+- `qa.py`: DOCX ZIP/reopen, structural, replacement, residual and media checks.
+- `evaluation.py` and `benchmark.py`: generated exact-span and block-classification metrics.
+- `pipeline.py`, `cli.py`, and `app.py`: one shared engine for CLI and Streamlit.
+
+Optional Indian extensions (`PAN`, `AADHAAR`, `PASSPORT`, `GSTIN`, `CIN`, `IFSC`) remain available, but they are not counted as substitutes for the assignment's nine required types.
+
+## Detection and replacement
+
+Structured patterns are validated where possible: cards must pass Luhn, IPv4 values must parse, SSNs reject structurally invalid groups, and phone values are parsed with `phonenumbers`. Ordinary dates are not DOB unless birth context is present. Addresses require address context plus postal/structural evidence. spaCy supplies PERSON and organization candidates, while known public authorities and non-company labels are filtered.
+
+Synthetic mode is the default:
+
+| Type | Replacement behavior |
 |---|---|
-| **Precision** | 0.9000 |
-| **Recall** | 1.0000 |
-| **F1** | 0.9474 |
-| **Character accuracy** | 0.9897 |
-| **Types detected** | 9 / 9 |
+| PERSON | synthetic full name |
+| EMAIL | linked `example.test` address |
+| PHONE | synthetic Indian-format number |
+| ADDRESS | synthetic test address |
+| COMPANY | synthetic company only when policy explicitly says REDACT |
+| DOB | synthetic date in the original style |
+| IPV4 | IANA TEST-NET-2 (`198.51.100.0/24`) address |
+| SSN | intentionally non-issued `000-00-xxxx` test value |
+| CREDIT_CARD | Luhn-valid test-style card preserving separators |
 
-Types covered: `PERSON`, `EMAIL`, `PHONE`, `ADDRESS`, `COMPANY`, `DOB`, `PAN`, `AADHAAR`, `CREDIT_CARD`
+An HMAC seed makes the mapping deterministic without putting original values in public reports. The same normalized value/identity receives the same replacement in a run. Mask and partial modes are available, but are not the assignment default.
 
-Full per-type breakdown is in [`reports/benchmark/required_types_evaluation.md`](reports/benchmark/required_types_evaluation.md).
+## DOCX and media safety
 
-> **Note:** These numbers are for the controlled benchmark only. Full-corpus precision and recall for the prospectus are not claimed until independent gold annotations are provided.
+Text traversal includes body paragraphs, arbitrary nested tables, headers, footers, footnotes, endnotes and comments when those parts exist. Replacements operate on OOXML text nodes so multi-run values can be changed without flattening the paragraph. External relationship targets are patched only when they contain an approved value; internal package paths are not altered.
 
----
+Media is extracted, hashed and inspected locally. The default replaces only media with structured PII, identity-document terms or decoded QR evidence. The UI's explicitly labeled high-security option replaces every embedded image, including harmless logos. Tesseract is optional; without it, native DOCX processing still works and OCR evidence is unavailable.
 
-## Results on the supplied prospectus
+Post-save QA verifies that the output is a valid ZIP/DOCX, can be reopened by `python-docx`, preserves structural element counts, contains each expected replacement, changes selected media, and has no approved original remaining in its original processed block. This is strong release evidence, not proof that an undetected value cannot exist.
 
-The tool was run end-to-end on a 127-page Red Herring Prospectus. Here's what happened:
+## Installation (Windows PowerShell)
 
-| Stage | Count |
-|---|---|
-| Text blocks extracted | 4,254 |
-| Embedded media assets | 8 / 8 replaced |
-| Total PII candidates found | 2,316 |
-| Auto-approved (confidence ≥ 0.85) | 289 |
-| Approved during human review | 281 |
-| Rejected as false positives | 1,746 |
-| Unresolved items remaining | **0** |
-
-The final output (`data/output/Red Herring Prospectus - Pseudonymized.docx`) passed all QA checks: no residual approved originals in the DOCX XML, all 8 media assets replaced, and the document re-opened correctly across 127 pages.
-
----
-
-## Project structure
-
-```
-.
-├── app.py                  # Streamlit web app — the main UI
-├── config.toml             # Configuration: paths, thresholds, tool settings
-├── pytest.ini              # Test configuration
-├── requirements.in         # Python dependencies
-│
-├── src/pii_redactor/       # Core Python package
-│   ├── pipeline.py         # Orchestrates the full redaction run
-│   ├── recognizers.py      # All PII detectors (regex, NER, checksums)
-│   ├── ensemble.py         # Merges and scores multi-source evidence
-│   ├── models.py           # Data classes: PIIRecord, Evidence, etc.
-│   ├── pseudonyms.py       # Deterministic synthetic replacement engine
-│   ├── review.py           # Review queue read/write
-│   ├── policy.py           # REDACT / PROTECT / IGNORE policy engine
-│   ├── docx_io.py          # DOCX reading, patching, and saving
-│   ├── media.py            # Image OCR and media replacement
-│   ├── qa.py               # Output validation and residual scanning
-│   ├── evaluation.py       # Precision/recall/F1 computation
-│   ├── benchmark.py        # Frozen 9-type benchmark runner
-│   ├── reporting.py        # Summary and audit log generation
-│   ├── relationships.py    # Identity linking across records
-│   ├── app_service.py      # Streamlit session helpers and download bundle
-│   ├── config.py           # Settings dataclass and TOML loader
-│   └── cli.py              # CLI command definitions
-│
-├── tests/                  # Pytest test suite (8 modules)
-├── scripts/                # run_app.ps1 and utility scripts
-├── docs/                   # COMPARISON.md, EVALUATION_REPORT.md, REDACTION_TRACKER.md
-├── data/
-│   ├── input/              # Source DOCX files
-│   ├── output/             # Pseudonymized and draft output files
-│   ├── private/            # Raw PII data — gitignored, never shared
-│   └── app_runs/           # Per-upload Streamlit session workspaces
-├── reports/
-│   ├── benchmark/          # Frozen benchmark labels and results
-│   └── ...                 # Sanitized audit logs and summary reports
-└── dist/                   # Release ZIP archives
-```
-
----
-
-## Setup
-
-**Requirements:** Python 3.12, [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki)
+Python 3.12 is the verified runtime. The lock file is authoritative.
 
 ```powershell
-# 1. Create and activate a virtual environment
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-# 2. Install dependencies
-pip install -r requirements.in
-
-# 3. Set your private deterministic seed (keep this outside the project)
-$env:PII_REDACTION_SEED = "your-secret-seed-here"
+git clone https://github.com/saumyasaini11/redact-scalarai.git
+cd redact-scalarai
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock
 ```
 
-The seed is what makes replacements consistent — the same original value will always produce the same synthetic replacement within a run. Store it somewhere safe; changing it changes all output values.
-
-Make sure Tesseract is installed and its path is set in `config.toml` under `[tools]`:
-
-```toml
-[tools]
-tesseract_cmd = "C:/Program Files/Tesseract-OCR/tesseract.exe"
-```
-
----
-
-## Running the app
-
-**Streamlit UI (recommended):**
+Or let the Python UI launcher create/install the environment:
 
 ```powershell
-streamlit run app.py
+python run.py --setup
 ```
 
-Or use the bundled script which handles the venv automatically:
+For OCR, install Tesseract and either place `tesseract` on `PATH` or set:
 
 ```powershell
-.\scripts\run_app.ps1
+$env:TESSERACT_CMD = "D:\Tools\Tesseract-OCR\tesseract.exe"
 ```
 
-The UI walks you through three steps:
-1. **Upload & Analyze** — upload a DOCX, choose your policy settings, and run detection
-2. **Review & Redact** — go through the flagged items, approve or reject each one, then regenerate the output
-3. **Verify & Evaluate** — run the benchmark, download the sanitized report bundle
+No source-code edit is required. `config.toml` can also specify a portable deployment path, but is blank by default.
 
-**CLI (for scripted runs):**
+## Run the CLI
+
+Place the supplied document at `data/input/Red Herring Prospectus (1).docx`, then:
 
 ```powershell
-# Set the source path first
 $env:PYTHONPATH = "$PWD\src"
-
-python -m pii_redactor --config config.toml inspect        # List what was found
-python -m pii_redactor --config config.toml run-all        # Full redaction run
-python -m pii_redactor --config config.toml benchmark      # Run the benchmark
-python -m pii_redactor --config config.toml review export  # Export the review queue
-python -m pii_redactor --config config.toml review apply   # Apply saved decisions
-python -m pii_redactor --config config.toml verify         # QA the output
+$env:PII_REDACTION_SEED = "replace-with-a-private-random-secret"
+.\.venv\Scripts\python.exe -m pii_redactor.cli inspect
+.\.venv\Scripts\python.exe -m pii_redactor.cli run-all
 ```
 
----
+`run-all` produces a review draft when review-policy items remain. Resolve them in the UI, or use the explicit conservative policy finalizer:
 
-## Confidence thresholds and the review queue
+```powershell
+.\.venv\Scripts\python.exe -m pii_redactor.cli review finalize
+```
 
-Every detected candidate gets a confidence score between 0 and 1. Here's how they're routed:
+That command protects corporate facts and redacts remaining personal candidates. It is a privacy-first policy action, not human annotation and not evidence of full-document precision.
 
-| Score range | What happens |
-|---|---|
-| **≥ 0.85** | Auto-approved and redacted immediately |
-| **0.60 – 0.849** | Sent to the review queue — a human decides |
-| **< 0.60** | Low-confidence inspection queue |
+Final output: `data/output/Red Herring Prospectus - Pseudonymized.docx`.
 
-A "review draft" is generated even while items are pending, so you can check the output at any stage. The final submission-ready filename is only released once every queued record has a decision and QA passes.
+Build the shareable source/evidence/output archive (it excludes the original DOCX and private mappings):
 
-**Available review decisions:** `APPROVE`, `REJECT_AS_NON_PII`, `RETYPE`, `ADJUST_SPAN`, `LINK_IDENTITY`, `UNLINK_IDENTITY`, `FORCE_MEDIA_REPLACEMENT`, `CLEAR_MEDIA`
+```powershell
+.\.venv\Scripts\python.exe scripts\build_submission.py
+```
 
----
+Archive: `dist/scalarai-pii-redaction-submission.zip`.
 
-## Replacement modes
+## Run the Streamlit UI
 
-| Mode | What it produces |
-|---|---|
-| `synthetic` (default) | Realistic fake names, addresses, numbers — linked across the document so the same person gets the same fake identity everywhere |
-| `mask` | Stable typed tokens like `[PERSON_1]`, `[EMAIL_2]` |
-| `partial` | Keeps a limited suffix (e.g. last 4 digits of a phone) where safe; falls back to masking for sensitive types |
+```powershell
+python run.py
+```
 
----
+The UI exposes the requested flow as:
 
-## PII types detected
+1. Upload
+2. Analyze
+3. View detection summary
+4. Review policy decisions
+5. Redact
+6. Verify/evaluate
+7. Download
 
-The tool covers 18 entity types split across identity, financial, contact, and digital categories:
+It shows detected counts, protected/redacted/ignored/review counts, QA status and the generated benchmark. Synthetic replacements, company protection and sensitive-media-only handling are the defaults.
 
-| Category | Types |
-|---|---|
-| Identity | `PERSON`, `DOB`, `PASSPORT`, `BIOMETRIC` |
-| Indian financial | `PAN`, `AADHAAR`, `GSTIN`, `CIN`, `IFSC` |
-| Universal financial | `CREDIT_CARD`, `SSN` |
-| Contact | `EMAIL`, `PHONE`, `ADDRESS`, `PIN_CODE` |
-| Digital | `IPV4`, `QR_CODE` |
-| Corporate | `COMPANY` |
+## Tests and benchmark
 
----
+```powershell
+$env:PYTHONPATH = "$PWD\src"
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pii_redactor.cli benchmark
+```
 
-## Known limitations
+The frozen manually defined gold benchmark contains one positive exact-span fixture for every required type plus twelve hard-negative blocks (ordinary dates, amounts, order/page numbers, legal terms, invalid IP/card lookalikes and identifiers).
 
-- **NER ambiguity** — spaCy can confuse public institution names, company headings, and people's names in dense legal text. The review queue exists precisely for this.
-- **Address span overlap** — addresses sometimes partially overlap with phone/email contact blocks. The heuristic boundary detection handles most cases but isn't perfect.
-- **OCR accuracy** — stylized logos, low-resolution scans, or degraded identity documents may not OCR cleanly. All embedded media is replaced by default to eliminate this risk entirely.
-- **Full-corpus F1** — precision and recall across the full prospectus aren't reported because no independent gold corpus exists for it yet. You can supply one via the app to unlock those metrics.
+| Metric | Unit | Result |
+|---|---|---:|
+| TP / FP / FN | exact entity/span | 9 / 0 / 0 |
+| Precision | exact entity/span | 1.0000 |
+| Recall | exact entity/span | 1.0000 |
+| F1 | exact entity/span | 1.0000 |
+| TP / TN / FP / FN | binary text block | 9 / 12 / 0 / 0 |
+| Accuracy | binary text block | 1.0000 |
+| Character accuracy | character coverage (additional) | 1.0000 |
+| Required types detected | controlled fixtures | 9 / 9 |
 
----
+These values are generated by code in [the benchmark report](reports/benchmark/required_types_evaluation.md). They show behavior on 21 deliberately small controlled blocks; they are not full-document RHP precision or recall.
 
-## Data privacy
+## Final RHP QA run
 
-- Document content **never leaves your machine** — no API calls, no cloud processing
-- `data/private/` contains raw detections and identity mappings and is excluded from git and from the shareable download bundle
-- The download bundle contains only the redacted DOCX, sanitized logs (fingerprints instead of original values), and the evaluation report
-- The seed is never stored in the project — it lives only in your environment variable for the duration of the session
+The final clean policy run produced:
+
+| Item | Result |
+|---|---:|
+| Candidates | 2,233 |
+| Redacted/pseudonymized by policy | 341 |
+| Protected corporate facts | 1,892 |
+| Unresolved policy-review items | 0 |
+| Sensitive media replaced | 1 / 8 |
+| Replacement application failures | 0 |
+| Residual approved originals in processed blocks | 0 |
+| Automated QA findings | 0 |
+| DOCX release gate | PASS |
+
+`KSH International Limited` remains in the output; the verified contact name `Sarthak Malvadkar` does not. See [RHP QA](docs/RHP_QA_REPORT.md), [tracker](docs/REDACTION_TRACKER.md), and `reports/summary_report.json`. No full-document precision, recall or accuracy is reported because the complete RHP has not been manually gold-annotated.
+
+## Evaluation definitions
+
+- Exact entity/span precision: `TP / (TP + FP)`.
+- Exact entity/span recall: `TP / (TP + FN)`.
+- F1: `2 × precision × recall / (precision + recall)`.
+- Block classification accuracy: `(TP + TN) / (TP + TN + FP + FN)`.
+
+True negatives use a finite text-block manifest. Character accuracy is reported separately and never called classification accuracy. Undefined divisions are written as `N/A`, not zero. Labels are described as a controlled/frozen manually defined gold benchmark; there was no independent annotator.
+
+## False positives, false negatives and limitations
+
+- spaCy can label legal headings, short abbreviations or schemes as people/organizations. Company protection prevents these organization candidates from changing real corporate facts, while ambiguous personal candidates still require review or conservative redaction.
+- Names and addresses with unusual OCR, spelling or fragmented drawing/text-box layouts can be missed.
+- Text boxes stored outside supported OOXML text parts may not be extracted.
+- OCR depends on local Tesseract quality. QR detection and full-image placeholder replacement do not selectively edit pixels inside an image.
+- Sensitive-media-only mode deliberately preserves harmless graphics; high-security mode trades layout semantics for lower disclosure risk.
+- The controlled benchmark is intentionally small. A larger independently annotated RHP sample would be the next meaningful evaluation improvement.
+- Synthetic values are test data, not guaranteed deliverable phone/address identities. Reserved domains/ranges are used where available.
+
+## Security and repository hygiene
+
+Raw originals, review decisions, identity mappings, uploads and outputs are gitignored. Shareable logs contain keyed fingerprints instead of raw values. Upload validation limits size, uncompressed size, package members, encryption and unsafe paths.
+
+The current tree no longer tracks `.venv`, the supplied source DOCX or per-record generated logs. Earlier Git commits did contain `.venv` and the source DOCX; removing those historical blobs requires a coordinated `git filter-repo` rewrite and force-push. That destructive history operation is intentionally not performed automatically.
+
+The final redacted DOCX is a separate assignment artifact under `data/output/`; it is not committed as source code.
+
+## Reference comparison
+
+The evidence-based A–AB comparison is in [docs/COMPARISON.md](docs/COMPARISON.md). The reference has a simpler one-click presentation, while this project retains the stronger policy, deterministic pseudonymization, validation, OCR/media, review, QA and executable evaluation design.

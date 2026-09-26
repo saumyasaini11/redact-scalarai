@@ -3,6 +3,8 @@ from __future__ import annotations
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
+import os
+import shutil
 import textwrap
 
 import cv2
@@ -73,11 +75,10 @@ def _placeholder(image: Image.Image, name: str, output_format: str) -> bytes:
 
 
 def analyze_media(media: dict[str, bytes], default_region: str, tesseract_cmd: str,
-                  replace_all: bool = True) -> tuple[list[PIIRecord], dict[str, bytes], list[dict]]:
-    if tesseract_cmd:
-        candidate = Path(tesseract_cmd)
-        if candidate.exists():
-            pytesseract.pytesseract.tesseract_cmd = str(candidate)
+                  replace_all: bool = False) -> tuple[list[PIIRecord], dict[str, bytes], list[dict]]:
+    discovered = tesseract_cmd or os.environ.get("TESSERACT_CMD") or shutil.which("tesseract") or ""
+    if discovered and Path(discovered).exists():
+        pytesseract.pytesseract.tesseract_cmd = str(Path(discovered))
     records: list[PIIRecord] = []
     replacements: dict[str, bytes] = {}
     inventory: list[dict] = []
@@ -100,6 +101,7 @@ def analyze_media(media: dict[str, bytes], default_region: str, tesseract_cmd: s
         except Exception:
             qr_value = ""
 
+        ocr_records: list[PIIRecord] = []
         if ocr_text:
             block = TextBlock(
                 block_id=f"media:{name}",
@@ -117,10 +119,11 @@ def analyze_media(media: dict[str, bytes], default_region: str, tesseract_cmd: s
                     "Value detected in locally extracted OCR text",
                 ))
                 records.append(record)
+                ocr_records.append(record)
 
         lower = ocr_text.casefold()
         identity_hits = [term for term in IDENTITY_TERMS if term in lower]
-        if identity_hits or (width >= 500 and height >= 500):
+        if identity_hits:
             records.append(_media_record(
                 name, PIIType.BIOMETRIC, "identity-document-media", 0.98,
                 "Identity document, face, or signature media", DetectionSource.OCR, width, height,
@@ -136,7 +139,7 @@ def analyze_media(media: dict[str, bytes], default_region: str, tesseract_cmd: s
                 "QR code or machine-readable square media", DetectionSource.QR_DETECTOR, width, height,
             ))
 
-        sensitive = replace_all or bool(identity_hits or qr_value or ocr_text)
+        sensitive = replace_all or bool(identity_hits or qr_value or ocr_records)
         if sensitive:
             extension = Path(name).suffix.lstrip(".") or image.format or "PNG"
             replacements[name] = _placeholder(image, name, extension)
@@ -148,7 +151,8 @@ def analyze_media(media: dict[str, bytes], default_region: str, tesseract_cmd: s
             "ocr_characters": len(ocr_text),
             "qr_decoded": bool(qr_value),
             "identity_terms": identity_hits,
+            "ocr_available": bool(discovered),
+            "sensitive_evidence": bool(identity_hits or qr_value or ocr_records),
             "replaced": sensitive,
         })
     return records, replacements, inventory
-

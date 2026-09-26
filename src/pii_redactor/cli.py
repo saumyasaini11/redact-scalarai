@@ -7,6 +7,7 @@ import sys
 
 from .config import load_settings
 from .benchmark import run_required_type_benchmark
+from .app_service import finalize_pending_privacy_first, read_jsonl
 from .docx_io import DocxPackage
 from .pipeline import run_pipeline
 from .qa import file_sha256, validate_docx
@@ -24,7 +25,7 @@ def _parser() -> argparse.ArgumentParser:
     verify = subparsers.add_parser("verify", help="Validate an existing DOCX")
     verify.add_argument("path", nargs="?", help="DOCX to verify; defaults to final then draft output")
     review = subparsers.add_parser("review", help="Show review queue information")
-    review.add_argument("action", choices=["export", "apply"])
+    review.add_argument("action", choices=["export", "apply", "finalize"])
     return parser
 
 
@@ -69,6 +70,24 @@ def main(argv: list[str] | None = None) -> int:
         count = len(queue.read_text(encoding="utf-8").splitlines()) if queue.exists() else 0
         print(json.dumps({"review_queue": str(queue), "items": count}, indent=2))
         return 0
+    if args.command == "review" and args.action == "finalize":
+        first = run_pipeline(settings)
+        queue_path = settings.private_dir / "review_queue.jsonl"
+        queue = read_jsonl(queue_path)
+        finalized = finalize_pending_privacy_first(
+            settings.private_dir / "review_decisions.jsonl", queue
+        )
+        result = run_pipeline(settings) if finalized else first
+        print(json.dumps({
+            "finalized_review_items": finalized,
+            "output_path": str(result.output_path),
+            "release_ready": result.release_ready,
+            "unresolved_count": result.unresolved_count,
+            "qa_errors": result.qa_errors,
+        }, indent=2))
+        if result.qa_errors:
+            return 3
+        return 0 if result.release_ready else 2
     result = run_pipeline(settings)
     print(json.dumps({
         "output_path": str(result.output_path),

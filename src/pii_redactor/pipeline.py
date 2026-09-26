@@ -17,6 +17,7 @@ from .qa import (
     media_hashes,
     replacement_application_failures,
     scan_original_values,
+    structure_signature,
     validate_structure_preservation,
     validate_docx,
 )
@@ -113,13 +114,14 @@ def run_pipeline(settings: Settings) -> PipelineResult:
         output_path = settings.draft_output_path
 
     patch_records = records_to_redact(records)
-    media_replacements = selected_media_replacements(records, media_replacements)
+    media_replacements = selected_media_replacements(
+        records, media_replacements, replace_all=settings.replace_all_media
+    )
     for item in media_inventory:
         item["replaced"] = item.get("media_name") in media_replacements
     package.apply_records(patch_records)
     package.replace_media(media_replacements)
     package.scrub_metadata()
-    package.normalize_known_layout_defects()
     package.save(output_path)
 
     qa_errors = validate_docx(output_path)
@@ -139,12 +141,19 @@ def run_pipeline(settings: Settings) -> PipelineResult:
     output_hash = file_sha256(output_path)
     summary = build_summary(
         records, source_hash, output_hash, pseudonymizer.seed_fingerprint,
-        media_inventory, str(output_path),
+        media_inventory,
+        str(output_path.relative_to(settings.project_root))
+        if output_path.is_relative_to(settings.project_root) else output_path.name,
     )
     summary["qa_errors"] = qa_errors
     summary["replacement_application_failures"] = len(application_failures)
     summary["residual_approved_originals_at_release"] = len(residuals) if release_ready else "NOT_RUN_DRAFT"
     summary["unresolved_review_items"] = len(pending)
+    summary["source_text_blocks"] = len(blocks)
+    summary["output_text_blocks"] = len(DocxPackage(output_path).extract_blocks())
+    summary["source_structure"] = structure_signature(settings.input_path)
+    summary["output_structure"] = structure_signature(output_path)
+    summary["structure_preserved"] = summary["source_structure"] == summary["output_structure"]
     write_summary(settings.reports_dir / "summary_report.json", summary)
     write_tracker(settings.project_root / "docs" / "REDACTION_TRACKER.md", summary)
 
@@ -155,8 +164,9 @@ def run_pipeline(settings: Settings) -> PipelineResult:
     )
     write_evaluation(
         evaluation,
-        settings.project_root / "docs" / "EVALUATION_REPORT.md",
-        settings.reports_dir / "evaluation_report.csv",
+        settings.project_root / "docs" / "RHP_QA_REPORT.md",
+        settings.reports_dir / "rhp_release_validation.csv",
+        title="RHP Release QA Report",
     )
     return PipelineResult(
         output_path=output_path,

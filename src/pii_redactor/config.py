@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import os
+import shutil
 import tomllib
 
 
@@ -62,9 +63,14 @@ def load_settings(path: str | Path) -> Settings:
         medium_threshold=float(redaction.get("medium_threshold", 0.60)),
         default_region=redaction.get("default_region", "IN"),
         company_scope=redaction.get("company_scope", "protect"),
-        replace_all_media=bool(redaction.get("replace_all_media", True)),
+        replace_all_media=bool(redaction.get("replace_all_media", False)),
         strict_release=bool(redaction.get("strict_release", True)),
         spacy_model=tools.get("spacy_model", "en_core_web_md"),
-        tesseract_cmd=tools.get("tesseract_cmd", ""),
+        tesseract_cmd=(
+            os.environ.get("TESSERACT_CMD")
+            or tools.get("tesseract_cmd", "")
+            or shutil.which("tesseract")
+            or ""
+        ),
         seed_env=redaction.get("seed_env", "PII_REDACTION_SEED"),
     )

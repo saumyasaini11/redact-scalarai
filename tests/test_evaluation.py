@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from pii_redactor.evaluation import evaluate
-from pii_redactor.models import PIIRecord, PIIType
+from pii_redactor.models import PIIRecord, PIIType, PolicyAction, ReviewStatus
 
 
 def _record(record_id: str, start: int, end: int) -> PIIRecord:
@@ -37,7 +37,21 @@ def test_strict_and_relaxed_evaluation():
         report = evaluate([_record("x", 0, 13)], gold_path, manifest_path)
         assert report["micro"]["tp"] == 1
         assert report["micro"]["f1"] == 1.0
+        assert report["block_classification"]["tp"] == 1
+        assert report["block_classification"]["tn"] == 0
+        assert report["block_classification"]["accuracy"] == 1.0
         assert report["character_accuracy"]["accuracy"] == 1.0
     finally:
         gold_path.unlink(missing_ok=True)
         manifest_path.unlink(missing_ok=True)
+
+
+def test_release_gate_uses_policy_action_not_confidence_flag():
+    missing = Path(".tmp") / "missing-gold.jsonl"
+    prediction = _record("company", 0, 13)
+    prediction.review_status = ReviewStatus.NEEDS_REVIEW
+    prediction.policy_action = PolicyAction.PROTECT
+    report = evaluate([prediction], missing)
+    assert report["unresolved_count"] == 0
+    assert report["release_gate_passed"] is True
+    assert report["policy_counts"] == {"PROTECT": 1}

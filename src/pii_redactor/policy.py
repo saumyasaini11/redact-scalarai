@@ -40,7 +40,9 @@ def records_to_redact(records: list[PIIRecord]) -> list[PIIRecord]:
     return [item for item in records if item.policy_action == PolicyAction.REDACT]
 
 
-def selected_media_replacements(records: list[PIIRecord], replacements: dict[str, bytes]) -> dict[str, bytes]:
+def selected_media_replacements(
+    records: list[PIIRecord], replacements: dict[str, bytes], *, replace_all: bool = False
+) -> dict[str, bytes]:
     clear_names = {
         item.media_name for item in records
         if item.media_name and item.policy_locked and item.policy_action == PolicyAction.IGNORE
@@ -49,6 +51,8 @@ def selected_media_replacements(records: list[PIIRecord], replacements: dict[str
         item.media_name for item in records
         if item.media_name and item.policy_action == PolicyAction.REDACT
     }
+    if replace_all:
+        return {name: payload for name, payload in replacements.items() if name not in clear_names}
     return {
         name: payload for name, payload in replacements.items()
         if name not in clear_names and name in redact_names

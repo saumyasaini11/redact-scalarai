@@ -15,10 +15,16 @@ from .models import DetectionSource, Evidence, PIIRecord, PIIType, TextBlock
 
 PUBLIC_AUTHORITY_TERMS = {
     "securities and exchange board of india",
+    "sebi",
     "government of india",
     "income tax department",
     "reserve bank of india",
+    "rbi",
     "ministry of corporate affairs",
+}
+NON_COMPANY_ORG_TERMS = {
+    "aadhaar", "address", "companies act", "credit card", "date of birth",
+    "dob", "email", "inr", "ip", "ipv4", "pan", "phone", "ssn",
 }
 COMMERCIAL_SIGNALS = (
     "limited", "ltd", "private", "pvt", "llp", "bank", "securities",
@@ -26,6 +32,7 @@ COMMERCIAL_SIGNALS = (
     "consultants", "services", "capital", "registrar", "associates",
 )
 NAME_CONTEXT = ("contact person", "name:", "director", "promoter", "father's name", "father name")
+PHONE_CONTEXT = ("telephone", "phone", "mobile", "contact", "tel:", "fax")
 ADDRESS_TERMS = (
     "address", "registered office", "corporate office", "road", "street", "lane",
     "nagar", "colony", "floor", "building", "plot", "district", "sector", "village",
@@ -33,6 +40,7 @@ ADDRESS_TERMS = (
 NEGATIVE_NUMBER_CONTEXT = (
     "order", "ticket", "invoice", "transaction", "reference", "registration",
     "employee id", "product id", "cin", "gstin", "folio", "application no",
+    "version", "card-like",
 )
 DOB_CONTEXT = ("dob", "date of birth", "born on", "birth date")
 BANK_CONTEXT = ("account", "bank account", "beneficiary", "bank details")
@@ -182,7 +190,9 @@ class StructuredRecognizerSet:
                         validators.append("valid SSN structure")
                     elif pii_type == PIIType.AADHAAR:
                         if not verhoeff_valid(value):
-                            score = 0.70 if "aadhaar" in lower else 0.55
+                            if "aadhaar" not in lower:
+                                continue
+                            score = 0.70
                             validators.append("Verhoeff failed or OCR uncertain")
                         else:
                             score = 0.98
@@ -205,7 +215,10 @@ class StructuredRecognizerSet:
                 nearby = lower[max(0, match.start - 35): min(len(lower), match.end + 35)]
                 if any(term in nearby for term in NEGATIVE_NUMBER_CONTEXT):
                     continue
-                score = 0.95 if phonenumbers.is_valid_number(match.number) else 0.85
+                valid = phonenumbers.is_valid_number(match.number)
+                if not valid and not any(term in nearby for term in PHONE_CONTEXT):
+                    continue
+                score = 0.95 if valid else 0.72
                 found.append(make_record(
                     block, PIIType.PHONE, match.start, match.end,
                     evidence(DetectionSource.CHECKSUM_VALIDATOR, "phonenumbers", score,
@@ -291,20 +304,28 @@ class SpacyEntityRecognizer:
             lower = block.text.casefold()
             for entity in document.ents:
                 if entity.label_ == "PERSON":
-                    tokens = [token for token in entity.text.split() if token]
-                    nearby = lower[max(0, entity.start_char - 50): min(len(lower), entity.end_char + 25)]
-                    contexts = tuple(term for term in NAME_CONTEXT if term in nearby)
-                    if len(tokens) < 2 and not contexts:
-                        continue
-                    score = 0.82 if contexts else 0.75
-                    found.append(make_record(
-                        block, PIIType.PERSON, entity.start_char, entity.end_char,
-                        evidence(DetectionSource.SPACY_NER, "spacy_person", score,
-                                 "spaCy PERSON entity", contexts=contexts),
-                    ))
+                    # spaCy sometimes returns an entire slash-separated list as one person.
+                    # Preserve each identity as its own span so replacements do not merge people.
+                    segments = list(re.finditer(r"[^/,;]+", entity.text)) if re.search(r"[/,;]", entity.text) else [None]
+                    for segment in segments:
+                        segment_text = entity.text if segment is None else segment.group().strip()
+                        relative_start = 0 if segment is None else segment.start() + len(segment.group()) - len(segment.group().lstrip())
+                        start = entity.start_char + relative_start
+                        end = start + len(segment_text)
+                        tokens = [token for token in segment_text.split() if token]
+                        nearby = lower[max(0, start - 50): min(len(lower), end + 25)]
+                        contexts = tuple(term for term in NAME_CONTEXT if term in nearby)
+                        if len(tokens) < 2 and not contexts:
+                            continue
+                        score = 0.82 if contexts else 0.75
+                        found.append(make_record(
+                            block, PIIType.PERSON, start, end,
+                            evidence(DetectionSource.SPACY_NER, "spacy_person", score,
+                                     "spaCy PERSON entity", contexts=contexts),
+                        ))
                 elif entity.label_ == "ORG":
                     value_lower = normalize_value(entity.text)
-                    if value_lower in PUBLIC_AUTHORITY_TERMS:
+                    if value_lower in PUBLIC_AUTHORITY_TERMS or value_lower in NON_COMPANY_ORG_TERMS:
                         continue
                     signals = tuple(term for term in COMMERCIAL_SIGNALS if term in value_lower)
                     score = 0.85 if signals else 0.60

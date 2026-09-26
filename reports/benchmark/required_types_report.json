@@ -35,11 +35,11 @@
       "pii_type": "COMPANY",
       "support": 1,
       "tp": 1,
-      "fp": 1,
+      "fp": 0,
       "fn": 0,
-      "precision": 0.5,
+      "precision": 1.0,
       "recall": 1.0,
-      "f1": 0.6666666666666666
+      "f1": 1.0
     },
     {
       "pii_type": "ADDRESS",
@@ -53,13 +53,13 @@
     },
     {
       "pii_type": "SSN",
-      "support": 0,
-      "tp": 0,
+      "support": 1,
+      "tp": 1,
       "fp": 0,
       "fn": 0,
-      "precision": null,
-      "recall": null,
-      "f1": null
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
     },
     {
       "pii_type": "CREDIT_CARD",
@@ -83,6 +83,16 @@
     },
     {
       "pii_type": "IPV4",
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    {
+      "pii_type": "PAN",
       "support": 0,
       "tp": 0,
       "fp": 0,
@@ -92,24 +102,14 @@
       "f1": null
     },
     {
-      "pii_type": "PAN",
-      "support": 1,
-      "tp": 1,
-      "fp": 0,
-      "fn": 0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1": 1.0
-    },
-    {
       "pii_type": "AADHAAR",
-      "support": 1,
-      "tp": 1,
+      "support": 0,
+      "tp": 0,
       "fp": 0,
       "fn": 0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1": 1.0
+      "precision": null,
+      "recall": null,
+      "f1": null
     },
     {
       "pii_type": "PASSPORT",
@@ -184,32 +184,32 @@
   ],
   "micro": {
     "tp": 9,
-    "fp": 1,
+    "fp": 0,
     "fn": 0,
-    "precision": 0.9,
+    "precision": 1.0,
     "recall": 1.0,
-    "f1": 0.9473684210526316
+    "f1": 1.0
   },
   "relaxed": {
     "tp": 9,
-    "fp": 1,
+    "fp": 0,
     "fn": 0,
-    "precision": 0.9,
+    "precision": 1.0,
     "recall": 1.0,
-    "f1": 0.9473684210526316
+    "f1": 1.0
   },
   "automatic_replacement_precision": 1.0,
-  "review_workload": 0.1,
+  "review_workload": 0.1111111111111111,
   "confidence_bands": {
     "high": {
-      "predictions": 9,
-      "tp": 9,
+      "predictions": 8,
+      "tp": 8,
       "precision": 1.0
     },
     "medium": {
       "predictions": 1,
-      "tp": 0,
-      "precision": 0.0
+      "tp": 1,
+      "precision": 1.0
     },
     "low": {
       "predictions": 0,
@@ -220,18 +220,30 @@
   "detector_source_contribution": {
     "CHECKSUM_VALIDATOR": 2,
     "CONTEXT_RULE": 2,
-    "GAZETTEER": 2,
+    "GAZETTEER": 1,
     "PRESIDIO_PATTERN": 3,
     "SPACY_NER": 2
   },
   "human_review_actions": {},
   "image_replacement_coverage": null,
+  "block_classification": {
+    "unit": "text block (binary: contains any labeled PII)",
+    "support": 21,
+    "tp": 9,
+    "tn": 12,
+    "fp": 0,
+    "fn": 0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0
+  },
   "character_accuracy": {
-    "tpchar": 197,
-    "tnchar": 92,
-    "fpchar": 3,
+    "tpchar": 185,
+    "tnchar": 621,
+    "fpchar": 0,
     "fnchar": 0,
-    "accuracy": 0.9897260273972602
+    "accuracy": 1.0
   },
   "benchmark_scope": "Frozen controlled corpus with one labeled example for each required PII type",
   "required_types": [
@@ -241,9 +253,9 @@
     "ADDRESS",
     "COMPANY",
     "DOB",
-    "PAN",
-    "AADHAAR",
-    "CREDIT_CARD"
+    "SSN",
+    "CREDIT_CARD",
+    "IPV4"
   ],
   "required_type_coverage": {
     "PERSON": true,
@@ -252,9 +264,15 @@
     "ADDRESS": true,
     "COMPANY": true,
     "DOB": true,
-    "PAN": true,
-    "AADHAAR": true,
-    "CREDIT_CARD": true
+    "SSN": true,
+    "CREDIT_CARD": true,
+    "IPV4": true
   },
-  "all_required_types_detected": true
+  "all_required_types_detected": true,
+  "negative_controls": {
+    "blocks": 12,
+    "true_negative_blocks": 12,
+    "false_positive_blocks": 0,
+    "false_positive_entities": 0
+  }
 }

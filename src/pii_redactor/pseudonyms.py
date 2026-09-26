@@ -125,9 +125,11 @@ class Pseudonymizer:
         if pii_type == PIIType.SSN:
             return f"000-00-{index % 10000:04d}"
         if pii_type == PIIType.CREDIT_CARD:
-            digits = "0" * max(12, sum(ch.isdigit() for ch in record.original_text) - 4) + f"{index % 10000:04d}"
-            if luhn_valid(digits):
-                digits = digits[:-1] + str((int(digits[-1]) + 1) % 10)
+            length = min(19, max(13, sum(ch.isdigit() for ch in record.original_text)))
+            # 411111... is a reserved test-style Visa prefix. Calculate the final
+            # Luhn digit so the synthetic replacement remains structurally valid.
+            body = ("411111" + f"{index:012d}")[: length - 1]
+            digits = body + self._luhn_check_digit(body)
             return self._restore_separators(record.original_text, digits)
         if pii_type == PIIType.PAN:
             return f"TESTX{index % 10000:04d}Z"
@@ -145,6 +147,14 @@ class Pseudonymizer:
         if pii_type == PIIType.IFSC:
             return f"TEST9{index % 1000000:06d}"
         return f"[{pii_type.value}_{index:04d}]"
+
+    @staticmethod
+    def _luhn_check_digit(body: str) -> str:
+        for digit in "0123456789":
+            candidate = body + digit
+            if luhn_valid(candidate):
+                return digit
+        raise RuntimeError("Unable to generate a Luhn-valid test card number")
 
     @staticmethod
     def _restore_separators(template: str, digits: str) -> str:

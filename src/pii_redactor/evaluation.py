@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
-from .models import PIIRecord, PIIType, ReviewStatus
+from .models import PIIRecord, PIIType, PolicyAction, ReviewStatus
 
 
 def _safe_ratio(numerator: int, denominator: int) -> float | None:
@@ -101,21 +101,67 @@ def _character_accuracy(predictions: list[PIIRecord], gold: list[dict], manifest
     return {"tpchar": tp, "tnchar": tn, "fpchar": fp, "fnchar": fn, "accuracy": _safe_ratio(tp + tn, total)}
 
 
+def _block_classification(
+    predictions: list[PIIRecord], gold: list[dict], manifest_path: Path | None
+) -> dict | str:
+    """Return binary PII-present classification metrics for manifest blocks.
+
+    Entity-level true negatives are not well-defined because arbitrary non-entity spans could
+    be counted. A frozen block manifest provides a finite, reproducible classification unit:
+    a block is positive when it contains at least one gold entity and predicted-positive when
+    the detector emits at least one entity in that block.
+    """
+    if manifest_path is None or not manifest_path.exists():
+        return "N/A: a complete block manifest is required for true-negative accounting"
+    manifest_blocks: set[tuple[str, str]] = set()
+    for line in manifest_path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            row = json.loads(line)
+            manifest_blocks.add((row["document_part"], row["block_id"]))
+    gold_positive = {
+        (item["document_part"], item["block_id"])
+        for item in gold
+        if (item["document_part"], item["block_id"]) in manifest_blocks
+    }
+    predicted_positive = {
+        (item.document_part, item.block_id)
+        for item in predictions
+        if (item.document_part, item.block_id) in manifest_blocks
+    }
+    tp = len(gold_positive & predicted_positive)
+    fp = len(predicted_positive - gold_positive)
+    fn = len(gold_positive - predicted_positive)
+    tn = len(manifest_blocks - gold_positive - predicted_positive)
+    precision = _safe_ratio(tp, tp + fp)
+    recall = _safe_ratio(tp, tp + fn)
+    return {
+        "unit": "text block (binary: contains any labeled PII)",
+        "support": len(manifest_blocks),
+        "tp": tp,
+        "tn": tn,
+        "fp": fp,
+        "fn": fn,
+        "accuracy": _safe_ratio(tp + tn, tp + tn + fp + fn),
+        "precision": precision,
+        "recall": recall,
+        "f1": _f1(precision, recall),
+    }
+
+
 def evaluate(predictions: list[PIIRecord], gold_path: Path, manifest_path: Path | None = None) -> dict:
     if not gold_path.exists() or not gold_path.read_text(encoding="utf-8").strip():
         status_counts = Counter(item.review_status.value for item in predictions)
         type_counts = Counter(item.pii_type.value for item in predictions)
-        unresolved_count = sum(
-            item.review_status in {ReviewStatus.NEEDS_REVIEW, ReviewStatus.LOW_CONFIDENCE}
-            for item in predictions
-        )
+        policy_counts = Counter(item.policy_action.value for item in predictions)
+        unresolved_count = sum(item.policy_action == PolicyAction.REVIEW for item in predictions)
         return {
             "status": "RELEASE_VALIDATION",
-            "reason": "Independent full-corpus gold annotations are not available; accuracy metrics are not claimed.",
+            "reason": "Complete full-corpus gold annotations are not available; accuracy metrics are not claimed.",
             "total_candidates": len(predictions),
             "unresolved_count": unresolved_count,
             "release_gate_passed": unresolved_count == 0,
             "status_counts": dict(sorted(status_counts.items())),
+            "policy_counts": dict(sorted(policy_counts.items())),
             "type_counts": dict(sorted(type_counts.items())),
         }
     gold = [json.loads(line) for line in gold_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -188,6 +234,7 @@ def evaluate(predictions: list[PIIRecord], gold_path: Path, manifest_path: Path 
             len({item.media_name for item in image_predictions if item.media_name}),
             len({item.get("media_name", item.get("document_part")) for item in image_gold}),
         ),
+        "block_classification": _block_classification(predictions, gold, manifest_path),
         "character_accuracy": _character_accuracy(predictions, gold, manifest_path),
     }
 
@@ -216,6 +263,10 @@ def write_evaluation(
             for key, value in report["status_counts"].items()
         )
         rows.extend(
+            {"section": "policy_action", "pii_type": "ALL", "metric": key.casefold(), "value": value, "notes": "Final release policy count"}
+            for key, value in report["policy_counts"].items()
+        )
+        rows.extend(
             {"section": "candidate_type", "pii_type": key, "metric": "candidate_count", "value": value, "notes": "Detected candidate count"}
             for key, value in report["type_counts"].items()
         )
@@ -224,13 +275,17 @@ def write_evaluation(
             writer.writeheader()
             writer.writerows(rows)
         lines = [
-            "# PII Redaction Evaluation Report", "", "## Release validation", "",
+            f"# {title}", "", "## Release validation", "",
             f"Review gate: **{'PASS' if report['release_gate_passed'] else 'FAIL'}**", "",
             f"- Total candidates: {report['total_candidates']}",
             f"- Unresolved review items: {report['unresolved_count']}",
-            "", "## Review outcomes", "", "| Status | Count |", "|---|---:|",
+            "", "## Detection confidence status", "",
+            "A `NEEDS_REVIEW` confidence flag is not unresolved when the explicit company/protection policy has already classified it.",
+            "", "| Status | Count |", "|---|---:|",
         ]
         lines.extend(f"| {key} | {value} |" for key, value in report["status_counts"].items())
+        lines.extend(["", "## Final policy actions", "", "| Action | Count |", "|---|---:|"])
+        lines.extend(f"| {key} | {value} |" for key, value in report["policy_counts"].items())
         lines.extend(["", "## Candidates by type", "", "| Type | Count |", "|---|---:|"])
         lines.extend(f"| {key} | {value} |" for key, value in report["type_counts"].items())
         lines.extend([
@@ -252,10 +307,35 @@ def write_evaluation(
         )
         csv_path.write_text("pii_type,support,tp,fp,fn,precision,recall,f1\n", encoding="utf-8")
         return
+    csv_rows = [
+        {
+            "unit": "exact entity/span",
+            "pii_type": row["pii_type"],
+            "support": row["support"],
+            "tp": row["tp"],
+            "tn": "",
+            "fp": row["fp"],
+            "fn": row["fn"],
+            "accuracy": "",
+            "precision": row["precision"],
+            "recall": row["recall"],
+            "f1": row["f1"],
+        }
+        for row in report["rows"]
+    ]
+    classification = report.get("block_classification")
+    if isinstance(classification, dict):
+        csv_rows.append({
+            "unit": classification["unit"], "pii_type": "ANY_PII",
+            **{key: classification[key] for key in ("support", "tp", "tn", "fp", "fn", "accuracy", "precision", "recall", "f1")},
+        })
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["pii_type", "support", "tp", "fp", "fn", "precision", "recall", "f1"])
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["unit", "pii_type", "support", "tp", "tn", "fp", "fn", "accuracy", "precision", "recall", "f1"],
+        )
         writer.writeheader()
-        writer.writerows(report["rows"])
+        writer.writerows(csv_rows)
     lines = [f"# {title}", ""]
     if scope_note:
         lines.extend([scope_note, ""])
@@ -271,6 +351,7 @@ def write_evaluation(
         )
     micro = report["micro"]
     relaxed = report["relaxed"]
+    classification = report.get("block_classification")
     lines.extend([
         "", "## Aggregate results", "",
         f"- Strict micro precision / recall / F1: {_format_metric(micro['precision'])} / {_format_metric(micro['recall'])} / {_format_metric(micro['f1'])}",
@@ -279,9 +360,25 @@ def write_evaluation(
         f"- Review workload: {_format_metric(report['review_workload'])}",
         f"- Image replacement coverage: {_format_metric(report['image_replacement_coverage'])}",
         f"- Character accuracy: {json.dumps(report['character_accuracy'], ensure_ascii=False)}",
+    ])
+    if isinstance(classification, dict):
+        lines.extend([
+            "", "## Block-level classification (true-negative metric)", "",
+            f"Unit: **{classification['unit']}**.", "",
+            "| TP | TN | FP | FN | Accuracy | Precision | Recall | F1 |",
+            "|---:|---:|---:|---:|---:|---:|---:|---:|",
+            f"| {classification['tp']} | {classification['tn']} | {classification['fp']} | {classification['fn']} | "
+            f"{_format_metric(classification['accuracy'])} | {_format_metric(classification['precision'])} | "
+            f"{_format_metric(classification['recall'])} | {_format_metric(classification['f1'])} |",
+        ])
+    else:
+        lines.extend(["", "## Block-level classification", "", str(classification)])
+    lines.extend([
         "", "## Confidence bands", "",
         "| Band | Predictions | TP | Precision |", "|---|---:|---:|---:|",
     ])
+    for band, values in report["confidence_bands"].items():
+        lines.append(f"| {band} | {values['predictions']} | {values['tp']} | {_format_metric(values['precision'])} |")
     if "negative_controls" in report:
         controls = report["negative_controls"]
         lines.extend([
@@ -291,8 +388,6 @@ def write_evaluation(
             f"- False-positive blocks: {controls['false_positive_blocks']}",
             f"- False-positive entities: {controls['false_positive_entities']}",
         ])
-    for band, values in report["confidence_bands"].items():
-        lines.append(f"| {band} | {values['predictions']} | {values['tp']} | {_format_metric(values['precision'])} |")
     lines.extend([
         "", "## Detector contribution", "",
         json.dumps(report["detector_source_contribution"], ensure_ascii=False, sort_keys=True),

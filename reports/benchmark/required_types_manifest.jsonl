@@ -1,9 +1,21 @@
-{"document_part": "benchmark/document.xml", "block_id": "benchmark#p1", "text": "Contact person: Kushal Subbayya Hegde"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p1", "text": "Contact person: John Smith"}
 {"document_part": "benchmark/document.xml", "block_id": "benchmark#p2", "text": "Email: reviewer.quality@example.test"}
 {"document_part": "benchmark/document.xml", "block_id": "benchmark#p3", "text": "Telephone: +91 98765 43210"}
 {"document_part": "benchmark/document.xml", "block_id": "benchmark#p4", "text": "Address: 42 Example Road, Sample Nagar, Delhi 110001"}
-{"document_part": "benchmark/document.xml", "block_id": "benchmark#p5", "text": "Company: Asteron Technologies Private Limited"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p5", "text": "Company: Example Technologies Private Limited"}
 {"document_part": "benchmark/document.xml", "block_id": "benchmark#p6", "text": "Date of birth: 14/03/1987"}
-{"document_part": "benchmark/document.xml", "block_id": "benchmark#p7", "text": "PAN: ABCDE1234F"}
-{"document_part": "benchmark/document.xml", "block_id": "benchmark#p8", "text": "Aadhaar: 2345 6789 0124"}
-{"document_part": "benchmark/document.xml", "block_id": "benchmark#p9", "text": "Payment card: 4111 1111 1111 1111"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p7", "text": "SSN: 123-45-6789"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p8", "text": "Payment card: 4111 1111 1111 1111"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p9", "text": "Client IP: 192.168.1.10"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p10", "text": "Board meeting held on December 10, 2025"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p11", "text": "Aggregate offer size is INR 7,100 million"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p12", "text": "Order 123456 remains open"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p13", "text": "See Page 124 for additional details"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p14", "text": "Offer Price and Floor Price are disclosed in this section"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p15", "text": "The Companies Act applies to the issuer"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p16", "text": "SEBI issued the applicable regulations"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p17", "text": "Revenue was INR 5,000,000 during the financial year"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p18", "text": "Reference identifier 123456789012345 remains unchanged"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p19", "text": "Version 999.12.4.1000 is not an IP address"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p20", "text": "Card-like value 4111 1111 1111 1112 fails validation"}
+{"document_part": "benchmark/document.xml", "block_id": "benchmark#p21", "text": "Registered office requirements are described by law"}

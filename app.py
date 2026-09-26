@@ -15,13 +15,11 @@ from pii_redactor.app_service import (
     build_download_bundle,
     create_app_run,
     read_jsonl,
+    finalize_pending_privacy_first,
     save_review_decisions,
 )
 from pii_redactor.benchmark import run_required_type_benchmark
 from pii_redactor.pipeline import run_pipeline
-
-
-TESSERACT_DEFAULT = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
 
 
 st.set_page_config(page_title="DOCX PII Redactor", page_icon="🔐", layout="wide")
@@ -30,11 +28,24 @@ st.caption("Local, confidence-aware pseudonymization with review gating, media r
 
 with st.sidebar:
     st.header("Redaction policy")
-    mode = st.selectbox("Replacement mode", ["synthetic", "mask", "partial"])
+    mode_label = st.selectbox(
+        "Replacement mode",
+        ["Synthetic pseudonyms", "Mask (obvious redaction)", "Partial masking"],
+        help="Synthetic mode is the assignment default and substitutes deterministic fake alternatives.",
+    )
+    mode = {
+        "Mask (obvious redaction)": "mask",
+        "Synthetic pseudonyms": "synthetic",
+        "Partial masking": "partial",
+    }[mode_label]
     high_threshold = st.slider("Automatic approval threshold", 0.70, 0.99, 0.85, 0.01)
     medium_threshold = st.slider("Review threshold", 0.30, high_threshold, 0.60, 0.01)
     default_region = st.text_input("Phone region", "IN", max_chars=2).upper()
-    replace_all_media = st.checkbox("Replace all embedded media", value=True)
+    replace_all_media = st.checkbox(
+        "High-security mode: replace all embedded media",
+        value=False,
+        help="Off replaces only media with PII/identity/QR evidence. On also replaces harmless logos and graphics.",
+    )
     company_scope = st.selectbox(
         "Corporate entity policy",
         ["protect", "review", "redact"],
@@ -47,12 +58,16 @@ with st.sidebar:
         help="The seed stays in this process and makes replacements consistent across repeated identities.",
     )
 
-upload_tab, review_tab, evaluation_tab = st.tabs(["1 Upload and analyze", "2 Policy review and redact", "3 Verify and evaluate"])
+upload_tab, review_tab, evaluation_tab = st.tabs([
+    "Steps 1–3 · Upload, analyze, summary",
+    "Steps 4–5 · Review policy, redact",
+    "Steps 6–7 · Verify, evaluate, download",
+])
 
 with upload_tab:
     uploaded = st.file_uploader("Upload a Word document", type=["docx"])
     gold_upload = st.file_uploader(
-        "Optional independent gold annotations",
+        "Optional complete gold annotations",
         type=["jsonl"],
         help="Provide exact spans to calculate document-specific precision, recall, and F1.",
     )
@@ -69,7 +84,8 @@ with upload_tab:
                 default_region=default_region,
                 replace_all_media=replace_all_media,
                 company_scope=company_scope,
-                tesseract_cmd=str(TESSERACT_DEFAULT) if TESSERACT_DEFAULT.exists() else "",
+                auto_redact_pending=False,
+                tesseract_cmd="",
             )
             if gold_upload:
                 (app_run.settings.private_dir / "gold_annotations.jsonl").write_bytes(gold_upload.getvalue())
@@ -77,7 +93,13 @@ with upload_tab:
                 result = run_pipeline(app_run.settings)
             st.session_state["app_run"] = app_run
             st.session_state["pipeline_result"] = result
-            st.success(f"Analysis complete: {result.record_count} candidates, {result.unresolved_count} need review.")
+            if result.release_ready:
+                st.success(f"Redaction complete: {result.record_count} candidates processed and QA passed.")
+            else:
+                st.warning(
+                    f"A review draft was created: {result.unresolved_count} decisions remain and "
+                    f"{len(result.qa_errors)} QA findings need attention."
+                )
         except Exception as exc:
             st.exception(exc)
 
@@ -91,18 +113,22 @@ with upload_tab:
         cols[1].metric("Needs review", result.unresolved_count)
         cols[2].metric("Media replaced", f"{summary.get('media_replaced', 0)}/{summary.get('media_total', 0)}")
         cols[3].metric("QA errors", len(result.qa_errors))
-        policy_cols = st.columns(3)
+        policy_cols = st.columns(4)
         policy_cols[0].metric("Redacted", summary.get("redacted_entities", 0))
         policy_cols[1].metric("Protected", summary.get("protected_entities", 0))
         policy_cols[2].metric("Ignored", summary.get("ignored_entities", 0))
+        policy_cols[3].metric("Policy review", summary.get("policy_review_required", 0))
         if summary.get("entities_by_type"):
             st.subheader("Detected PII summary")
             st.dataframe(
                 [{"PII type": key, "Candidates": value} for key, value in summary["entities_by_type"].items()],
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
-        st.info("A draft is available now. A final filename is released only when every queued item has a decision and QA passes.")
+        if result.release_ready:
+            st.success("The final redacted document is ready to download from the review tab.")
+        else:
+            st.warning("This is only a review draft. Do not treat it as a fully redacted document.")
 
 with review_tab:
     app_run: AppRun | None = st.session_state.get("app_run")
@@ -132,9 +158,21 @@ with review_tab:
                 "note": "",
             } for item in visible_queue]
             st.warning("Review values are displayed locally because a human decision is required. They are never included in the shareable bundle.")
+            if st.button(f"Privacy-first finalize {len(queue)} pending items"):
+                try:
+                    finalize_pending_privacy_first(
+                        app_run.settings.private_dir / "review_decisions.jsonl",
+                        queue,
+                    )
+                    with st.spinner("Applying all redactions and running package-wide QA..."):
+                        result = run_pipeline(app_run.settings)
+                    st.session_state["pipeline_result"] = result
+                    st.rerun()
+                except Exception as exc:
+                    st.exception(exc)
             edited = st.data_editor(
                 rows,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 disabled=["record_id", "type", "value", "confidence", "part"],
                 column_config={
@@ -175,30 +213,49 @@ with review_tab:
         result = st.session_state.get("pipeline_result")
         if result and result.output_path.exists():
             mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            st.download_button("Download current DOCX", result.output_path.read_bytes(), result.output_path.name, mime)
+            download_label = "Download final redacted DOCX" if result.release_ready else "Download review draft DOCX"
+            st.download_button(download_label, result.output_path.read_bytes(), result.output_path.name, mime)
             st.download_button(
                 "Download sanitized submission bundle",
                 build_download_bundle(app_run, result.output_path),
                 f"pii-redaction-{app_run.run_id}.zip",
                 "application/zip",
             )
-            evaluation_path = app_run.root / "docs" / "EVALUATION_REPORT.md"
+            evaluation_path = app_run.root / "docs" / "RHP_QA_REPORT.md"
             if evaluation_path.exists():
                 st.download_button(
                     "Download evaluation report",
                     evaluation_path.read_bytes(),
-                    "EVALUATION_REPORT.md",
+                    "RHP_QA_REPORT.md",
                     "text/markdown",
                 )
             if result.qa_errors:
                 st.error("QA findings: " + "; ".join(result.qa_errors))
 
 with evaluation_tab:
+    st.subheader("Verification and downloads")
+    current_result = st.session_state.get("pipeline_result")
+    current_run = st.session_state.get("app_run")
+    if current_result:
+        if current_result.release_ready:
+            st.success("Review gate and automated DOCX QA passed.")
+        else:
+            st.warning(
+                f"Not release-ready: {current_result.unresolved_count} review items and "
+                f"{len(current_result.qa_errors)} QA findings remain."
+            )
+    if current_run and current_result and current_result.output_path.exists():
+        st.download_button(
+            "Download current DOCX",
+            current_result.output_path.read_bytes(),
+            current_result.output_path.name,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
     st.subheader("Measured nine-type benchmark")
     st.write(
         "This frozen corpus measures exact-span precision, recall, and F1 for PERSON, EMAIL, PHONE, "
         "COMPANY, ADDRESS, SSN, CREDIT_CARD, DOB, and IPV4. It is reported separately from an "
-        "uploaded document unless independent annotations are supplied."
+        "uploaded document unless complete annotations are supplied."
     )
     if st.button("Run required-type benchmark"):
         try:
@@ -210,16 +267,18 @@ with evaluation_tab:
     report = st.session_state.get("benchmark_report")
     if report:
         micro = report["micro"]
-        cols = st.columns(4)
-        cols[0].metric("Precision", f"{micro['precision']:.3f}" if micro["precision"] is not None else "N/A")
-        cols[1].metric("Recall", f"{micro['recall']:.3f}" if micro["recall"] is not None else "N/A")
-        cols[2].metric("F1", f"{micro['f1']:.3f}" if micro["f1"] is not None else "N/A")
-        cols[3].metric("Required types", f"{sum(report['required_type_coverage'].values())}/9")
-        st.dataframe(report["rows"], use_container_width=True, hide_index=True)
+        classification = report["block_classification"]
+        cols = st.columns(5)
+        cols[0].metric("Block accuracy", f"{classification['accuracy']:.3f}")
+        cols[1].metric("Span precision", f"{micro['precision']:.3f}" if micro["precision"] is not None else "N/A")
+        cols[2].metric("Span recall", f"{micro['recall']:.3f}" if micro["recall"] is not None else "N/A")
+        cols[3].metric("Span F1", f"{micro['f1']:.3f}" if micro["f1"] is not None else "N/A")
+        cols[4].metric("Required types", f"{sum(report['required_type_coverage'].values())}/9")
+        st.dataframe(report["rows"], width="stretch", hide_index=True)
 
     app_run = st.session_state.get("app_run")
     if app_run:
-        evaluation_path = app_run.root / "docs" / "EVALUATION_REPORT.md"
+        evaluation_path = app_run.root / "docs" / "RHP_QA_REPORT.md"
         if evaluation_path.exists():
             st.subheader("Uploaded document evaluation")
             st.markdown(evaluation_path.read_text(encoding="utf-8"))

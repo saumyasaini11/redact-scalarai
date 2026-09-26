@@ -58,6 +58,7 @@ def create_app_run(
     default_region: str,
     replace_all_media: bool,
     company_scope: str = "protect",
+    auto_redact_pending: bool = False,
     spacy_model: str = "en_core_web_md",
     tesseract_cmd: str = "",
 ) -> AppRun:
@@ -70,6 +71,7 @@ def create_app_run(
         "region": default_region,
         "replace_all_media": replace_all_media,
         "company_scope": company_scope,
+        "auto_redact_pending": auto_redact_pending,
         "seed_fingerprint": sha256(seed.encode("utf-8")).hexdigest()[:16],
     }, sort_keys=True).encode("utf-8")
     run_id = sha256(payload + policy).hexdigest()[:16]
@@ -141,15 +143,43 @@ def save_review_decisions(path: Path, rows: list[dict], source_hash: str) -> int
     return saved
 
 
+def finalize_pending_privacy_first(path: Path, queue: list[dict]) -> int:
+    """Resolve a queue conservatively without changing legitimate corporate facts.
+
+    Corporate names and identifiers are explicitly protected. Other pending PII is
+    redacted. This is a policy action, not a substitute for human annotation and not
+    evidence of detector precision.
+    """
+    if not queue:
+        return 0
+    source_hashes = {str(item.get("source_hash") or "") for item in queue}
+    if len(source_hashes) != 1 or not next(iter(source_hashes)):
+        raise ValueError("Review queue has missing or inconsistent source hashes")
+    corporate_types = {"COMPANY", "CIN", "GSTIN", "IFSC"}
+    rows = []
+    for item in queue:
+        protect = str(item.get("pii_type")) in corporate_types
+        rows.append({
+            "record_id": item["record_id"],
+            "decision": "PROTECT" if protect else "REDACT",
+            "identity_id": item.get("identity_id") or "",
+            "note": (
+                "Privacy-first finalization: preserve detected corporate fact"
+                if protect else "Privacy-first finalization: redact unresolved personal PII"
+            ),
+        })
+    return save_review_decisions(path, rows, next(iter(source_hashes)))
+
+
 def build_download_bundle(run: AppRun, output_path: Path) -> bytes:
     """Return a shareable ZIP that excludes raw PII, decisions, and identity mappings."""
     buffer = BytesIO()
     candidates = [
         output_path,
         run.settings.reports_dir / "summary_report.json",
-        run.settings.reports_dir / "evaluation_report.csv",
+        run.settings.reports_dir / "rhp_release_validation.csv",
         run.settings.reports_dir / "pii_detection_log.sanitized.jsonl",
-        run.root / "docs" / "EVALUATION_REPORT.md",
+        run.root / "docs" / "RHP_QA_REPORT.md",
         run.root / "docs" / "REDACTION_TRACKER.md",
     ]
     with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:

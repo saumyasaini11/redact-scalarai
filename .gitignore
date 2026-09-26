@@ -13,10 +13,13 @@ data/private/*
 data/output/*
 !data/output/.gitkeep
 data/app_runs/
+data/input/*
+!data/input/.gitkeep
 
 # Reports with raw values
 reports/rendered/
 reports/*.private.*
+reports/pii_detection_log.sanitized.jsonl
 
 # Distribution archives
 dist/

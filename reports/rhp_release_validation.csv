@@ -1,0 +1,16 @@
+section,pii_type,metric,value,notes
+release,ALL,total_candidates,2233,All centralized detections
+release,ALL,unresolved_review_items,0,Must be zero for final release
+release,ALL,release_gate_passed,true,Review-completion gate
+decision_status,ALL,approved,134,Reviewed candidate count
+decision_status,ALL,auto_approved,458,Reviewed candidate count
+decision_status,ALL,needs_review,1641,Reviewed candidate count
+policy_action,ALL,protect,1892,Final release policy count
+policy_action,ALL,redact,341,Final release policy count
+candidate_type,ADDRESS,candidate_count,19,Detected candidate count
+candidate_type,CIN,candidate_count,9,Detected candidate count
+candidate_type,COMPANY,candidate_count,1883,Detected candidate count
+candidate_type,EMAIL,candidate_count,50,Detected candidate count
+candidate_type,PERSON,candidate_count,237,Detected candidate count
+candidate_type,PHONE,candidate_count,33,Detected candidate count
+candidate_type,QR_CODE,candidate_count,2,Detected candidate count

@@ -35,6 +35,7 @@ class DetectionSource(str, Enum):
     CHECKSUM_VALIDATOR = "CHECKSUM_VALIDATOR"
     OCR = "OCR"
     QR_DETECTOR = "QR_DETECTOR"
+    POLICY = "POLICY"
     HUMAN_REVIEW = "HUMAN_REVIEW"
 
 

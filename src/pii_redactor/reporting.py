@@ -6,7 +6,7 @@ import hmac
 import json
 from pathlib import Path
 
-from .models import PIIRecord, PolicyAction, ReviewStatus
+from .models import DetectionSource, PIIRecord, PolicyAction, ReviewStatus
 
 
 def _fingerprint(secret: str, record: PIIRecord) -> str:
@@ -40,6 +40,14 @@ def build_summary(records: list[PIIRecord], source_hash: str, output_hash: str |
     source_counts = Counter(
         item.source.value for record in records for item in record.evidence
     )
+    human_reviewed = sum(
+        any(evidence.source == DetectionSource.HUMAN_REVIEW for evidence in record.evidence)
+        for record in records
+    )
+    policy_finalized = sum(
+        any(evidence.source == DetectionSource.POLICY for evidence in record.evidence)
+        for record in records
+    )
     return {
         "source_sha256": source_hash,
         "output_sha256": output_hash,
@@ -58,9 +66,11 @@ def build_summary(records: list[PIIRecord], source_hash: str, output_hash: str |
         "protected_entities": policy_counts.get(PolicyAction.PROTECT.value, 0),
         "ignored_entities": policy_counts.get(PolicyAction.IGNORE.value, 0),
         "policy_review_required": policy_counts.get(PolicyAction.REVIEW.value, 0),
-        "review_approved": status_counts.get(ReviewStatus.APPROVED.value, 0),
+        "review_approved": human_reviewed,
+        "policy_finalized": policy_finalized,
         "review_rejected": status_counts.get(ReviewStatus.REJECTED_AS_NON_PII.value, 0),
-        "manual_review_required": status_counts.get(ReviewStatus.NEEDS_REVIEW.value, 0),
+        "manual_review_required": policy_counts.get(PolicyAction.REVIEW.value, 0),
+        "confidence_review_flags": status_counts.get(ReviewStatus.NEEDS_REVIEW.value, 0),
         "low_confidence_inspection": status_counts.get(ReviewStatus.LOW_CONFIDENCE.value, 0),
         "media_total": len(media_inventory),
         "media_replaced": sum(bool(item.get("replaced")) for item in media_inventory),
@@ -86,10 +96,14 @@ def write_tracker(path: Path, summary: dict) -> None:
         f"- Protected by policy: `{summary.get('protected_entities', 0)}`",
         f"- Ignored by policy: `{summary.get('ignored_entities', 0)}`",
         f"- Approved during review: `{summary.get('review_approved', 0)}`",
+        f"- Finalized by explicit privacy-first policy: `{summary.get('policy_finalized', 0)}`",
         f"- Rejected as non-PII: `{summary.get('review_rejected', 0)}`",
         f"- Manual review required: `{summary['manual_review_required']}`",
+        f"- Confidence flags resolved by policy: `{summary.get('confidence_review_flags', 0)}`",
         f"- Low-confidence inspection: `{summary['low_confidence_inspection']}`",
         f"- Media replaced: `{summary['media_replaced']}/{summary['media_total']}`",
+        f"- Text blocks preserved: `{summary.get('output_text_blocks', 'TBD')}/{summary.get('source_text_blocks', 'TBD')}`",
+        f"- DOCX structure signature preserved: `{summary.get('structure_preserved', 'TBD')}`",
         "",
         "## Counts by type",
         "",

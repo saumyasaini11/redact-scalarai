@@ -39,9 +39,10 @@ def apply_decisions(
         decision = decisions.get(record.record_id)
         if not decision:
             continue
+        policy_finalization = decision.note.startswith("Privacy-first finalization:")
         record.evidence.append(Evidence(
-            DetectionSource.HUMAN_REVIEW,
-            f"human_{decision.action.casefold()}",
+            DetectionSource.POLICY if policy_finalization else DetectionSource.HUMAN_REVIEW,
+            f"{'policy' if policy_finalization else 'human'}_{decision.action.casefold()}",
             1.0,
             decision.note or f"Human review decision: {decision.action}",
         ))
@@ -50,12 +51,12 @@ def apply_decisions(
         elif decision.action == "REDACT":
             record.review_status = ReviewStatus.APPROVED
             record.policy_action = PolicyAction.REDACT
-            record.policy_reason = "Explicit human redaction decision"
+            record.policy_reason = decision.note or "Explicit human redaction decision"
             record.policy_locked = True
         elif decision.action == "PROTECT":
             record.review_status = ReviewStatus.APPROVED
             record.policy_action = PolicyAction.PROTECT
-            record.policy_reason = "Explicit human protection decision"
+            record.policy_reason = decision.note or "Explicit human protection decision"
             record.policy_locked = True
         elif decision.action == "IGNORE":
             record.review_status = ReviewStatus.REJECTED_AS_NON_PII

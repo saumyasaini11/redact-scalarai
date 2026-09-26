@@ -1,6 +1,6 @@
 presidio-analyzer==2.2.364
 spacy==3.8.16
-en-core-web-md==3.8.0
+en-core-web-md @ https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl
 Faker==40.39.0
 phonenumbers==9.0.40
 pytesseract==0.3.13

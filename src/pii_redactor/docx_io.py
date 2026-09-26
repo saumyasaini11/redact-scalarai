@@ -175,18 +175,48 @@ class DocxPackage:
         replacements: dict[str, str] = {}
         for record in records:
             if record.source_kind == "native_text" and record.original_text and record.replacement_value:
-                replacements.setdefault(record.original_text, record.replacement_value)
-        ordered = sorted(replacements, key=len, reverse=True)
-        if not ordered:
+                replacements.setdefault(record.original_text.casefold(), record.replacement_value)
+        if not replacements:
             return
-        lookup = {key.casefold(): value for key, value in replacements.items()}
-        pattern = re.compile("|".join(re.escape(key) for key in ordered), re.IGNORECASE)
-        for name, root in self.roots.items():
-            if not self._is_text_part(name):
+
+        def bounded(value: str) -> str:
+            prefix = r"(?<!\w)" if value[0].isalnum() else ""
+            suffix = r"(?!\w)" if value[-1].isalnum() else ""
+            return prefix + re.escape(value) + suffix
+
+        ordered = sorted(replacements, key=len, reverse=True)
+        pattern = re.compile("|".join(bounded(key) for key in ordered), re.IGNORECASE)
+        safe_values = sorted(set(replacements.values()), key=len, reverse=True)
+        safe_pattern = re.compile(
+            "|".join(re.escape(value) for value in safe_values),
+            re.IGNORECASE,
+        )
+        for binding in self.bindings.values():
+            nodes = [item.node for item in binding.slices]
+            text = "".join(node.text or "" for node in nodes)
+            if not text:
                 continue
-            for node in root.xpath("//w:t | //w:instrText", namespaces=NS):
+            protected_ranges = [
+                (match.start(), match.end())
+                for match in safe_pattern.finditer(text)
+            ]
+            matches = [
+                match for match in pattern.finditer(text)
+                if not any(match.start() < end and match.end() > start for start, end in protected_ranges)
+            ]
+            cursor = 0
+            slices: list[NodeSlice] = []
+            for node in nodes:
                 value = node.text or ""
-                node.text = pattern.sub(lambda match: lookup[match.group(0).casefold()], value)
+                slices.append(NodeSlice(node=node, start=cursor, end=cursor + len(value)))
+                cursor += len(value)
+            for match in reversed(matches):
+                self._replace_span(
+                    slices,
+                    match.start(),
+                    match.end(),
+                    replacements[match.group(0).casefold()],
+                )
 
     def _replace_relationship_targets(self, records: list[PIIRecord]) -> None:
         replacements = {
@@ -203,6 +233,8 @@ class DocxPackage:
             if not name.endswith(".rels"):
                 continue
             for element in root.iter():
+                if element.get("TargetMode") != "External":
+                    continue
                 target = element.get("Target")
                 if not target:
                     continue
@@ -263,22 +295,6 @@ class DocxPackage:
                 for child in list(content_types):
                     if child.get("PartName") == "/docProps/custom.xml":
                         content_types.remove(child)
-
-    def normalize_known_layout_defects(self) -> None:
-        """Remove an inherited extreme right indent that collapses one auditor cell."""
-        for name, root in self.roots.items():
-            if not self._is_text_part(name):
-                continue
-            for cell in root.xpath("//w:tc", namespaces=NS):
-                text = "".join(cell.xpath(".//w:t/text()", namespaces=NS))
-                if "116417W" not in text or "Peer review number" not in text:
-                    continue
-                for right_margin in cell.xpath("./w:tcPr/w:tcMar/w:right", namespaces=NS):
-                    right_margin.set(f"{{{W_NS}}}w", "120")
-                paragraphs = cell.xpath("./w:p", namespaces=NS)
-                if paragraphs:
-                    for indent in paragraphs[0].xpath("./w:pPr/w:ind", namespaces=NS):
-                        indent.set(f"{{{W_NS}}}right", "0")
 
     def save(self, output_path: str | Path) -> Path:
         output = Path(output_path).resolve()

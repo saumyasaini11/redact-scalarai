@@ -38,6 +38,14 @@ HARD_NEGATIVES = (
     "Aggregate offer size is INR 7,100 million",
     "Order 123456 remains open",
     "See Page 124 for additional details",
+    "Offer Price and Floor Price are disclosed in this section",
+    "The Companies Act applies to the issuer",
+    "SEBI issued the applicable regulations",
+    "Revenue was INR 5,000,000 during the financial year",
+    "Reference identifier 123456789012345 remains unchanged",
+    "Version 999.12.4.1000 is not an IP address",
+    "Card-like value 4111 1111 1111 1112 fails validation",
+    "Registered office requirements are described by law",
 )
 
 
@@ -52,7 +60,7 @@ def run_required_type_benchmark(
     default_region: str = "IN",
     spacy_model: str = "en_core_web_md",
 ) -> dict:
-    """Run the production detector on a frozen, independently labeled nine-type corpus."""
+    """Run the production detector on a frozen manually defined nine-type corpus."""
     output_dir.mkdir(parents=True, exist_ok=True)
     blocks: list[TextBlock] = []
     gold: list[dict] = []
@@ -120,7 +128,7 @@ def run_required_type_benchmark(
         scope_note=(
             "These are measured exact-span results on a frozen controlled benchmark. "
             "They prove executable coverage of the nine required types, but they do not substitute "
-            "for full-corpus metrics on an uploaded document unless that document has independent gold annotations."
+            "for full-corpus metrics on an uploaded document unless that document has complete gold annotations."
         ),
     )
     return report

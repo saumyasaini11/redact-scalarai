@@ -3,7 +3,12 @@ from uuid import uuid4
 
 from docx import Document
 
-from pii_redactor.app_service import build_download_bundle, create_app_run, save_review_decisions
+from pii_redactor.app_service import (
+    build_download_bundle,
+    create_app_run,
+    finalize_pending_privacy_first,
+    save_review_decisions,
+)
 
 
 def _docx_bytes(path: Path) -> bytes:
@@ -45,3 +50,17 @@ def test_review_decisions_only_write_decided_rows():
     ], "source")
     assert count == 1
     assert '"record_id": "1"' in (tmp_path / "decisions.jsonl").read_text(encoding="utf-8")
+
+
+def test_privacy_first_finalization_protects_corporate_facts():
+    tmp_path = _workdir()
+    path = tmp_path / "decisions.jsonl"
+    queue = [
+        {"record_id": "1", "source_hash": "source", "identity_id": "person-1", "pii_type": "PERSON"},
+        {"record_id": "2", "source_hash": "source", "identity_id": "org-1", "pii_type": "COMPANY"},
+    ]
+
+    assert finalize_pending_privacy_first(path, queue) == 2
+    contents = path.read_text(encoding="utf-8")
+    assert contents.count('"action": "REDACT"') == 1
+    assert contents.count('"action": "PROTECT"') == 1

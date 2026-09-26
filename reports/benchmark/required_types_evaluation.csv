@@ -1,19 +1,20 @@
-pii_type,support,tp,fp,fn,precision,recall,f1
-PERSON,1,1,0,0,1.0,1.0,1.0
-EMAIL,1,1,0,0,1.0,1.0,1.0
-PHONE,1,1,0,0,1.0,1.0,1.0
-COMPANY,1,1,1,0,0.5,1.0,0.6666666666666666
-ADDRESS,1,1,0,0,1.0,1.0,1.0
-SSN,0,0,0,0,,,
-CREDIT_CARD,1,1,0,0,1.0,1.0,1.0
-DOB,1,1,0,0,1.0,1.0,1.0
-IPV4,0,0,0,0,,,
-PAN,1,1,0,0,1.0,1.0,1.0
-AADHAAR,1,1,0,0,1.0,1.0,1.0
-PASSPORT,0,0,0,0,,,
-GSTIN,0,0,0,0,,,
-CIN,0,0,0,0,,,
-IFSC,0,0,0,0,,,
-PIN_CODE,0,0,0,0,,,
-BIOMETRIC,0,0,0,0,,,
-QR_CODE,0,0,0,0,,,
+unit,pii_type,support,tp,tn,fp,fn,accuracy,precision,recall,f1
+exact entity/span,PERSON,1,1,,0,0,,1.0,1.0,1.0
+exact entity/span,EMAIL,1,1,,0,0,,1.0,1.0,1.0
+exact entity/span,PHONE,1,1,,0,0,,1.0,1.0,1.0
+exact entity/span,COMPANY,1,1,,0,0,,1.0,1.0,1.0
+exact entity/span,ADDRESS,1,1,,0,0,,1.0,1.0,1.0
+exact entity/span,SSN,1,1,,0,0,,1.0,1.0,1.0
+exact entity/span,CREDIT_CARD,1,1,,0,0,,1.0,1.0,1.0
+exact entity/span,DOB,1,1,,0,0,,1.0,1.0,1.0
+exact entity/span,IPV4,1,1,,0,0,,1.0,1.0,1.0
+exact entity/span,PAN,0,0,,0,0,,,,
+exact entity/span,AADHAAR,0,0,,0,0,,,,
+exact entity/span,PASSPORT,0,0,,0,0,,,,
+exact entity/span,GSTIN,0,0,,0,0,,,,
+exact entity/span,CIN,0,0,,0,0,,,,
+exact entity/span,IFSC,0,0,,0,0,,,,
+exact entity/span,PIN_CODE,0,0,,0,0,,,,
+exact entity/span,BIOMETRIC,0,0,,0,0,,,,
+exact entity/span,QR_CODE,0,0,,0,0,,,,
+text block (binary: contains any labeled PII),ANY_PII,21,9,12,0,0,1.0,1.0,1.0,1.0
