@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
-from .models import PIIRecord, PIIType, PolicyAction, ReviewStatus
+from .models import ASSIGNMENT_PII_TYPES, PIIRecord, PIIType, PolicyAction, ReviewStatus
 
 
 def _safe_ratio(numerator: int, denominator: int) -> float | None:
@@ -266,9 +266,14 @@ def write_evaluation(
             {"section": "policy_action", "pii_type": "ALL", "metric": key.casefold(), "value": value, "notes": "Final release policy count"}
             for key, value in report["policy_counts"].items()
         )
+        required_codes = {pii_type.value for pii_type, _ in ASSIGNMENT_PII_TYPES}
         rows.extend(
-            {"section": "candidate_type", "pii_type": key, "metric": "candidate_count", "value": value, "notes": "Detected candidate count"}
-            for key, value in report["type_counts"].items()
+            {"section": "candidate_type", "pii_type": pii_type.value, "metric": "candidate_count", "value": report["type_counts"].get(pii_type.value, 0), "notes": "Assignment-required type; detected candidate count"}
+            for pii_type, _ in ASSIGNMENT_PII_TYPES
+        )
+        rows.extend(
+            {"section": "additional_candidate_type", "pii_type": key, "metric": "candidate_count", "value": value, "notes": "Additional detected type"}
+            for key, value in report["type_counts"].items() if key not in required_codes
         )
         with csv_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=["section", "pii_type", "metric", "value", "notes"])
@@ -286,8 +291,19 @@ def write_evaluation(
         lines.extend(f"| {key} | {value} |" for key, value in report["status_counts"].items())
         lines.extend(["", "## Final policy actions", "", "| Action | Count |", "|---|---:|"])
         lines.extend(f"| {key} | {value} |" for key, value in report["policy_counts"].items())
-        lines.extend(["", "## Candidates by type", "", "| Type | Count |", "|---|---:|"])
-        lines.extend(f"| {key} | {value} |" for key, value in report["type_counts"].items())
+        lines.extend([
+            "", "## Assignment-required PII types", "",
+            "Counts are detected candidates in this document. Zero means none were detected, not proof of absence.",
+            "", "| Type | Count |", "|---|---:|",
+        ])
+        lines.extend(
+            f"| {label} | {report['type_counts'].get(pii_type.value, 0)} |"
+            for pii_type, label in ASSIGNMENT_PII_TYPES
+        )
+        additional = [(key, value) for key, value in report["type_counts"].items() if key not in required_codes]
+        if additional:
+            lines.extend(["", "## Additional detected types", "", "| Type | Count |", "|---|---:|"])
+            lines.extend(f"| {key} | {value} |" for key, value in additional)
         lines.extend([
             "", "## Accuracy scope", "",
             report["reason"],

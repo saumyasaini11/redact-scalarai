@@ -24,16 +24,27 @@ A `NEEDS_REVIEW` confidence flag is not unresolved when the explicit company/pro
 | PROTECT | 1892 |
 | REDACT | 341 |
 
-## Candidates by type
+## Assignment-required PII types
+
+Counts are detected candidates in this document. Zero means none were detected, not proof of absence.
 
 | Type | Count |
 |---|---:|
-| ADDRESS | 19 |
+| Full names | 237 |
+| Email addresses | 50 |
+| Phone numbers | 33 |
+| Company names | 1883 |
+| Physical/mailing addresses | 19 |
+| Social Security Numbers (SSNs) | 0 |
+| Credit card numbers | 0 |
+| Dates of birth | 0 |
+| IP addresses | 0 |
+
+## Additional detected types
+
+| Type | Count |
+|---|---:|
 | CIN | 9 |
-| COMPANY | 1883 |
-| EMAIL | 50 |
-| PERSON | 237 |
-| PHONE | 33 |
 | QR_CODE | 2 |
 
 ## Accuracy scope

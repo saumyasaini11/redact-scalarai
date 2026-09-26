@@ -8,7 +8,9 @@ The application does not claim that every possible PII value is detected. It pro
 
 The assignment requires a redacted/pseudonymized DOCX and support for nine categories:
 
-`PERSON`, `EMAIL`, `PHONE`, `COMPANY`, `ADDRESS`, `SSN`, `CREDIT_CARD`, `DOB`, and `IPV4`.
+Full names (`PERSON`), email addresses (`EMAIL`), phone numbers (`PHONE`), company names (`COMPANY`), physical/mailing addresses (`ADDRESS`), Social Security Numbers (`SSN`), credit card numbers (`CREDIT_CARD`), dates of birth (`DOB`), and IP addresses (`IPV4`).
+
+RHP candidate tables show all nine assignment types, including zero counts when a type was not detected in this document. Additional RHP-specific types are listed separately; a zero count is not proof that a type is absent.
 
 Detection is separate from the release decision:
 

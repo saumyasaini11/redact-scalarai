@@ -26,6 +26,19 @@ class PIIType(str, Enum):
     QR_CODE = "QR_CODE"
 
 
+ASSIGNMENT_PII_TYPES = (
+    (PIIType.PERSON, "Full names"),
+    (PIIType.EMAIL, "Email addresses"),
+    (PIIType.PHONE, "Phone numbers"),
+    (PIIType.COMPANY, "Company names"),
+    (PIIType.ADDRESS, "Physical/mailing addresses"),
+    (PIIType.SSN, "Social Security Numbers (SSNs)"),
+    (PIIType.CREDIT_CARD, "Credit card numbers"),
+    (PIIType.DOB, "Dates of birth"),
+    (PIIType.IPV4, "IP addresses"),
+)
+
+
 class DetectionSource(str, Enum):
     REGEX = "REGEX"
     PRESIDIO_PATTERN = "PRESIDIO_PATTERN"

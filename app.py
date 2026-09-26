@@ -19,6 +19,7 @@ from pii_redactor.app_service import (
     save_review_decisions,
 )
 from pii_redactor.benchmark import run_required_type_benchmark
+from pii_redactor.models import ASSIGNMENT_PII_TYPES
 from pii_redactor.pipeline import run_pipeline
 
 
@@ -199,11 +200,20 @@ if app_run and result:
         details[1].metric("Media replaced", f"{summary.get('media_replaced', 0)}/{summary.get('media_total', 0)}")
         details[2].metric("QA findings", len(result.qa_errors))
         if summary.get("entities_by_type"):
+            counts = summary["entities_by_type"]
+            required_codes = {pii_type.value for pii_type, _ in ASSIGNMENT_PII_TYPES}
+            st.write("Assignment-required PII types (detected candidates)")
             st.dataframe(
-                [{"PII type": name, "Candidates": count} for name, count in summary["entities_by_type"].items()],
+                [{"PII type": label, "Candidates": counts.get(pii_type.value, 0)}
+                 for pii_type, label in ASSIGNMENT_PII_TYPES],
                 width="stretch",
                 hide_index=True,
             )
+            additional = [{"PII type": name, "Candidates": count}
+                          for name, count in counts.items() if name not in required_codes]
+            if additional:
+                st.write("Additional detected types")
+                st.dataframe(additional, width="stretch", hide_index=True)
         if result.qa_errors:
             st.error("; ".join(result.qa_errors))
         qa_path = app_run.root / "docs" / "RHP_QA_REPORT.md"

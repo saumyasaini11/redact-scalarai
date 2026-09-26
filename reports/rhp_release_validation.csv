@@ -7,10 +7,14 @@ decision_status,ALL,auto_approved,458,Reviewed candidate count
 decision_status,ALL,needs_review,1641,Reviewed candidate count
 policy_action,ALL,protect,1892,Final release policy count
 policy_action,ALL,redact,341,Final release policy count
-candidate_type,ADDRESS,candidate_count,19,Detected candidate count
-candidate_type,CIN,candidate_count,9,Detected candidate count
-candidate_type,COMPANY,candidate_count,1883,Detected candidate count
-candidate_type,EMAIL,candidate_count,50,Detected candidate count
-candidate_type,PERSON,candidate_count,237,Detected candidate count
-candidate_type,PHONE,candidate_count,33,Detected candidate count
-candidate_type,QR_CODE,candidate_count,2,Detected candidate count
+candidate_type,PERSON,candidate_count,237,Assignment-required type; detected candidate count
+candidate_type,EMAIL,candidate_count,50,Assignment-required type; detected candidate count
+candidate_type,PHONE,candidate_count,33,Assignment-required type; detected candidate count
+candidate_type,COMPANY,candidate_count,1883,Assignment-required type; detected candidate count
+candidate_type,ADDRESS,candidate_count,19,Assignment-required type; detected candidate count
+candidate_type,SSN,candidate_count,0,Assignment-required type; detected candidate count
+candidate_type,CREDIT_CARD,candidate_count,0,Assignment-required type; detected candidate count
+candidate_type,DOB,candidate_count,0,Assignment-required type; detected candidate count
+candidate_type,IPV4,candidate_count,0,Assignment-required type; detected candidate count
+additional_candidate_type,CIN,candidate_count,9,Additional detected type
+additional_candidate_type,QR_CODE,candidate_count,2,Additional detected type

@@ -14,20 +14,31 @@
 - Manual review required: `0`
 - Confidence flags resolved by policy: `1641`
 - Low-confidence inspection: `0`
-- Media replaced: `1/8`
+- Embedded images replaced: `1/8`
 - Text blocks preserved: `4254/4254`
 - DOCX structure signature preserved: `True`
 
-## Counts by type
+## Assignment-required PII types
+
+Counts are detected candidates in this document. Zero means none were detected, not proof of absence.
 
 | Type | Count |
 |---|---:|
-| ADDRESS | 19 |
+| Full names | 237 |
+| Email addresses | 50 |
+| Phone numbers | 33 |
+| Company names | 1883 |
+| Physical/mailing addresses | 19 |
+| Social Security Numbers (SSNs) | 0 |
+| Credit card numbers | 0 |
+| Dates of birth | 0 |
+| IP addresses | 0 |
+
+## Additional detected types
+
+| Type | Count |
+|---|---:|
 | CIN | 9 |
-| COMPANY | 1883 |
-| EMAIL | 50 |
-| PERSON | 237 |
-| PHONE | 33 |
 | QR_CODE | 2 |
 
 ## Policy decisions

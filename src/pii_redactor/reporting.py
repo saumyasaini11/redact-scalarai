@@ -6,7 +6,7 @@ import hmac
 import json
 from pathlib import Path
 
-from .models import DetectionSource, PIIRecord, PolicyAction, ReviewStatus
+from .models import ASSIGNMENT_PII_TYPES, DetectionSource, PIIRecord, PolicyAction, ReviewStatus
 
 
 def _fingerprint(secret: str, record: PIIRecord) -> str:
@@ -105,12 +105,20 @@ def write_tracker(path: Path, summary: dict) -> None:
         f"- Text blocks preserved: `{summary.get('output_text_blocks', 'TBD')}/{summary.get('source_text_blocks', 'TBD')}`",
         f"- DOCX structure signature preserved: `{summary.get('structure_preserved', 'TBD')}`",
         "",
-        "## Counts by type",
+        "## Assignment-required PII types",
+        "",
+        "Counts are detected candidates in this document. Zero means none were detected, not proof of absence.",
         "",
         "| Type | Count |",
         "|---|---:|",
     ]
-    lines.extend(f"| {key} | {value} |" for key, value in summary["entities_by_type"].items())
+    counts = summary["entities_by_type"]
+    required_codes = {pii_type.value for pii_type, _ in ASSIGNMENT_PII_TYPES}
+    lines.extend(f"| {label} | {counts.get(pii_type.value, 0)} |" for pii_type, label in ASSIGNMENT_PII_TYPES)
+    additional = [(key, value) for key, value in counts.items() if key not in required_codes]
+    if additional:
+        lines.extend(["", "## Additional detected types", "", "| Type | Count |", "|---|---:|"])
+        lines.extend(f"| {key} | {value} |" for key, value in additional)
     lines.extend(["", "## Policy decisions", "", "| Action | Count |", "|---|---:|"])
     lines.extend(f"| {key} | {value} |" for key, value in summary.get("entities_by_policy", {}).items())
     lines.extend(["", "## Evidence by source", "", "| Source | Contributions |", "|---|---:|"])

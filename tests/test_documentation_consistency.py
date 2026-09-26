@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from pii_redactor.models import ASSIGNMENT_PII_TYPES
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,3 +46,17 @@ def test_ui_wording_and_sensitive_media_default_match_documentation():
     assert "value=False" in app
     assert "replace_all_media = false" in config
     assert "sensitive-media-only" in readme
+
+
+def test_rhp_reports_show_all_assignment_types_with_actual_counts():
+    summary = json.loads((ROOT / "reports" / "summary_report.json").read_text(encoding="utf-8"))
+    qa = (ROOT / "docs" / "RHP_QA_REPORT.md").read_text(encoding="utf-8")
+    tracker = (ROOT / "docs" / "REDACTION_TRACKER.md").read_text(encoding="utf-8")
+    counts = summary["entities_by_type"]
+    for pii_type, label in ASSIGNMENT_PII_TYPES:
+        row = f"| {label} | {counts.get(pii_type.value, 0)} |"
+        assert row in qa
+        assert row in tracker
+    assert "## Additional detected types" in qa
+    for extra_type in ("CIN", "QR_CODE"):
+        assert f"| {extra_type} | {counts[extra_type]} |" in qa
